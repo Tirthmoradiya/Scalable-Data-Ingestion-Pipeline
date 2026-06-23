@@ -1,164 +1,236 @@
 # Scalable Data Ingestion Pipeline
 
-A production-grade Python data pipeline that ingests unstructured and semi-structured datasets, cleans and validates them, and bulk-loads them into a normalized MySQL database — with comprehensive PyTest coverage and optimized SQL.
+A production-grade, highly scalable Python data pipeline that streams, cleans, validates, and bulk-loads datasets into a normalized database. Built with a modular architecture supporting CSV, JSON, NDJSON, and Parquet formats, paginated REST APIs, persistent job scheduling, OpenTelemetry tracing, Prometheus metrics, and automated post-load quality profiling.
+
+---
+
+## Architecture Flow
+
+```mermaid
+graph TD
+    A[Data Sources: CSV, JSON, NDJSON, Parquet, API] -->|Stream / Chunks| B[PipelineRunner]
+    B -->|Thread Pool Execution| C[DataCleaner]
+    C -->|Strip, Unicode NFC, Truncate, Nullify| D[Pydantic v2 Validators]
+    D -->|Strict Validation| E[DataTransformer]
+    E -->|FK Resolution & Deduplication| F[DBLoader]
+    F -->|Batched session.merge| G[(MySQL / SQLite Database)]
+    
+    %% Error Handling
+    D -->|Validation Errors| H[Dead-Letter Queue JSONL]
+    F -->|DB Constraints / Failures| I[Tenacity Retry Loop]
+    I -->|Max Attempts Exhausted| H
+    
+    %% Control & Monitoring
+    K[FastAPI / REST API] -->|Monitor Runs & Health| G
+    L[Prometheus / OTel] -->|Scrape Metrics & Spans| B
+    M[APScheduler] -->|Persistent Job Store| B
+    N[DataProfiler] -->|Post-Load Reconciliation| G
+```
+
+---
 
 ## Features
 
-| Area | Details |
-|------|---------|
-| **Ingestion** | CSV, JSON, NDJSON, paginated REST API |
-| **Cleaning** | Null sentinel replacement, Unicode normalization, field truncation, whitespace stripping |
-| **Validation** | Pydantic v2 schemas — typed, strict, descriptive errors |
-| **Transformation** | FK resolution, deduplication, date coercion across 6 formats |
-| **Loading** | SQLAlchemy 2.x ORM, batched `session.merge()` upserts, configurable batch size |
-| **Schema** | 3NF normalized MySQL — Categories → Products → Customers → Orders → OrderItems |
-| **Indexing** | Composite indexes on `(customer_id, ordered_at)` and `(status, ordered_at)` |
-| **Testing** | PyTest + pytest-cov — unit, integration, and E2E tests against in-memory SQLite |
-| **Audit** | `pipeline_runs` table records every run's source, ingested/failed row counts, and duration |
+| Capability | Details |
+| :--- | :--- |
+| **Multi-Format Ingestion** | Streaming CSV, JSON, line-delimited JSON (NDJSON), and Parquet files (using PyArrow row-groups), plus paginated REST APIs. |
+| **Robust Error Handling** | Tenacity-powered exponential back-off retries, thread-safe Circuit Breaker for downstream resilience, and a JSONL Dead-Letter Queue (DLQ) for failed rows. |
+| **High Performance** | Multithreaded chunk processing utilizing `ThreadPoolExecutor`, database connection pooling, and optimized batched `session.merge()` bulk loading. |
+| **FastAPI Monitoring Server** | Liveness probe `/health`, paginated run audit logs `/runs`, run detail `/runs/{run_id}`, and Prometheus metrics `/metrics`. |
+| **APScheduler Scheduling** | Persistent background job scheduling storing cron and interval jobs inside a database table so schedules survive process restarts. |
+| **Data Quality Profiling** | Automated post-load reconciliation checking DB row counts against ingested counts, column-wise null rates, and uniqueness metrics. |
+| **Observability Stack** | Structured JSON/Console logging via `structlog`, Prometheus client metrics instrumentation, and OpenTelemetry (OTel) tracing. |
+| **Layered Settings** | Composite config loading using `pydantic-settings` supporting `.env`, `.env.development`, `.env.staging`, and `.env.production`. |
 
 ---
 
 ## Project Structure
 
 ```
-data-pipeline/
-├── pipeline/
-│   ├── config.py              # DB config, env loading
-│   ├── models.py              # SQLAlchemy ORM models (3NF schema)
-│   ├── ingestion/
-│   │   ├── base_ingester.py   # Abstract base class
-│   │   ├── csv_ingester.py    # CSV ingester
-│   │   ├── json_ingester.py   # JSON / NDJSON ingester
-│   │   └── api_ingester.py    # Paginated REST API ingester
-│   ├── cleaning/
-│   │   ├── cleaner.py         # Pre-validation data cleaning
-│   │   └── validators.py      # Pydantic v2 schemas
-│   ├── transformations/
-│   │   └── transformer.py     # FK resolution + deduplication
-│   ├── loader/
-│   │   └── db_loader.py       # Bulk upsert + audit logging
-│   └── utils/
-│       ├── logger.py          # Structured logging
-│       └── metrics.py         # Per-run metrics tracker
+.
+├── cli.py                     # Production CLI entry point (Typer + Rich)
+├── main.py                    # Legacy CLI / simple entry point
+├── Dockerfile                 # Multi-stage production Docker image
+├── docker-compose.yml         # Container definitions for MySQL/Prometheus/OTel
+├── pyproject.toml             # Project metadata, Ruff & Mypy configurations
+├── requirements.txt           # Lockfile for external dependencies
+├── .env.example               # Template environment configuration
 ├── sql/
-│   ├── schema.sql             # MySQL DDL + indexes
-│   └── analytics_queries.sql  # Optimized analytical queries
-├── tests/
-│   ├── conftest.py            # Fixtures (SQLite engine, session, raw data)
-│   ├── test_ingestion.py      # CSV / JSON / API ingester tests
-│   ├── test_cleaning.py       # DataCleaner tests
-│   ├── test_validators.py     # Pydantic validator tests
-│   ├── test_transformations.py # DataTransformer tests
-│   ├── test_loader.py         # DBLoader integration tests
-│   └── test_pipeline_e2e.py   # Full E2E pipeline tests
-├── data/
+│   ├── schema.sql             # 3NF MySQL Database Schema & Composite Indexes
+│   └── analytics_queries.sql  # High-performance analytical queries
+├── data/                      # Sample datasets for development
 │   ├── sample_orders.csv
 │   ├── sample_products.json
 │   └── sample_events.ndjson
-├── main.py                    # CLI entry point
-├── requirements.txt
-└── .env.example
+├── pipeline/
+│   ├── __init__.py
+│   ├── config.py              # Backward-compatible DB configuration helper
+│   ├── settings.py            # Pydantic Settings composition and env validation
+│   ├── models.py              # SQLAlchemy ORM schemas (Customers, Orders, Items, etc.)
+│   ├── runner.py              # PipelineRunner orchestrator (multithreaded engine)
+│   ├── scheduler.py           # APScheduler background manager with SQL job store
+│   ├── api/
+│   │   ├── __init__.py
+│   │   └── app.py             # FastAPI monitoring and health dashboard
+│   ├── ingestion/
+│   │   ├── __init__.py
+│   │   ├── base_ingester.py   # Abstract Base Ingester class
+│   │   ├── csv_ingester.py    # Chunked CSV files ingester
+│   │   ├── json_ingester.py   # Chunked JSON & NDJSON ingester
+│   │   ├── parquet_ingester.py # Streaming PyArrow Parquet ingester
+│   │   └── api_ingester.py    # Paginated HTTP REST API ingester
+│   ├── cleaning/
+│   │   ├── __init__.py
+│   │   ├── cleaner.py         # Null sentinels, Unicode NFC, stripping & truncation
+│   │   └── validators.py      # Strict Pydantic v2 schemas
+│   ├── transformations/
+│   │   ├── __init__.py
+│   │   └── transformer.py     # Deduplication and batch foreign-key resolution
+│   ├── loader/
+│   │   ├── __init__.py
+│   │   └── db_loader.py       # Batched DB bulk upsert and audit logging
+│   └── quality/
+│   │   ├── __init__.py
+│   │   └── profiler.py        # Post-load Table/Column profile reports
+│   └── utils/
+│       ├── __init__.py
+│       ├── logger.py          # Structured run-scoped logging via structlog
+│       ├── metrics.py         # PipelineMetrics accumulator
+│       ├── telemetry.py       # OTel tracing hook + Prometheus collectors
+│       ├── circuit_breaker.py # Thread-safe CircuitBreaker for external I/O
+│       └── retry.py           # Tenacity wrappers & DeadLetterWriter
+└── tests/                     # Comprehensive testing suite (unit/integration/E2E)
+    ├── conftest.py            # SQLite fixtures, engine, and sample data generator
+    ├── test_ingestion.py      # Ingester test cases
+    ├── test_cleaning.py       # Pre-validation cleaner tests
+    ├── test_validators.py     # Pydantic schema validation tests
+    ├── test_transformations.py # FK resolution and dedup tests
+    ├── test_loader.py         # DBLoader bulk-merge integration tests
+    ├── test_runner.py         # Orchestrator test cases
+    ├── test_settings.py       # Pydantic Settings loading tests
+    ├── test_quality.py        # Quality Profiler validation tests
+    ├── test_retry.py          # Retry and Dead-Letter Queue writer tests
+    └── test_pipeline_e2e.py   # Full SQLite in-memory end-to-end flow tests
 ```
 
 ---
 
 ## Quick Start
 
-### 1. Install dependencies
-
+### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure environment
-
+### 2. Configure Environment
 ```bash
 cp .env.example .env
-# Edit .env with your MySQL credentials
+# Edit .env with your configuration settings (MySQL credentials, log level, etc.)
 ```
 
-### 3. Create MySQL schema
-
+### 3. Apply Schema & Migrations
 ```bash
+# If using MySQL, create the schema:
 mysql -u root -p data_pipeline < sql/schema.sql
+
+# Or use Alembic to apply migrations:
+python cli.py migrate
 ```
 
-### 4. Run the pipeline
+---
 
+## CLI Usage Guide
+
+The production CLI is built with **Typer** and **Rich** to provide a rich terminal experience. Running `python cli.py` with no arguments will show the interactive help menu.
+
+### Ingest Data
+Ingest dataset files or API endpoints directly into the database.
 ```bash
-# Ingest a CSV file into MySQL
-python main.py --source csv --file data/sample_orders.csv
+# Ingest customers CSV file (SQLite local database)
+python cli.py ingest --source csv --file data/sample_orders.csv --entity customers --db-url sqlite
 
-# Ingest a JSON product feed
-python main.py --source json --file data/sample_products.json
+# Ingest products JSON feed with data-quality profiling turned on
+python cli.py ingest --source json --file data/sample_products.json --entity products --profile
 
-# Use SQLite for a quick local test (no MySQL needed)
-python main.py --source csv --file data/sample_orders.csv --db-url sqlite
+# Stream NDJSON event data using 8 worker threads and chunk size of 5000
+python cli.py ingest --source ndjson --file data/sample_events.ndjson --entity orders --workers 8 --chunk-size 5000
 ```
+
+### Show Pipeline Status
+Show a formatted audit log of recent pipeline runs directly from the database.
+```bash
+python cli.py status --limit 15
+```
+
+### Start API Server
+Launch the FastAPI monitoring API.
+```bash
+python cli.py api --port 8000 --host 0.0.0.0
+```
+
+### Manage Scheduled Jobs
+Manage persistent APScheduler jobs stored in your database.
+```bash
+# Add a scheduled ingestion job running on a cron schedule
+python cli.py schedule add --source csv --file data/sample_orders.csv --entity orders --cron "0 * * * *"
+
+# Add a scheduled job running every 30 minutes
+python cli.py schedule add --source json --file data/sample_products.json --entity products --every 30
+
+# List all current scheduled jobs
+python cli.py schedule list
+```
+
+### Profile Data Quality
+Generate a detailed post-load quality report for any database table.
+```bash
+python cli.py profile orders --ingested 10000
+```
+
+---
+
+## Observability & Monitoring
+
+### FastAPI Dashboard
+When the API server is running (`python cli.py api`), the following endpoints are available:
+- **`GET /health`**: Health status probe checking general connectivity and database reachability.
+- **`GET /runs`**: Paginated summaries of recent runs including ingested/failed counts and duration.
+- **`GET /runs/{run_id}`**: Detailed information on a specific pipeline run, containing full exception error logs if failures occurred.
+- **`GET /metrics`**: Prometheus-formatted text metrics.
+- **`GET /docs`**: Automated interactive API documentation (Swagger UI).
+
+### Prometheus Metrics
+If metrics are enabled, the pipeline instruments the following metrics:
+- `pipeline_rows_ingested_total` (Labels: `source`, `entity`): Successfully loaded records.
+- `pipeline_rows_failed_total` (Labels: `source`, `reason_category`): Records that failed validation or loading.
+- `pipeline_batch_duration_seconds` (Labels: `source`): Ingestion execution duration histogram.
+- `pipeline_run_duration_seconds` (Labels: `source`, `status`): Full pipeline execution time.
+- `pipeline_active_runs`: Gauge of runs currently in progress.
+- `pipeline_circuit_breaker_opens_total` (Labels: `breaker_name`): Count of circuit breaker trip events.
+
+---
+
+## Robustness & Error Handling
+
+- **Unicode Mojibake / Whitespace**: `DataCleaner` normalizes encoding to NFC, drops illegal control characters, strips whitespace, and truncates fields exceeding database size constraints before schema validation.
+- **Pydantic Validation**: Strict schema verification filters out rows containing mismatched types, bad emails, or missing keys. Valid records pass to transformations; invalid records bypass execution.
+- **Dead-Letter Queue (DLQ)**: Records that fail schema validation or SQLAlchemy load steps are written to `dead_letter/{run_id}.jsonl` containing the exact error reason, timestamp, and raw payload.
+- **Tenacity Retries**: Multi-worker loaders apply a thread-safe exponential back-off strategy during database flush calls to prevent transient lock contention failures.
+- **Circuit Breaker**: Outgoing REST API requests run through a thread-safe `CircuitBreaker`. If downstream APIs throw repeated failures, the breaker opens, instantly throwing `CircuitOpenError` to prevent wasting resources and allow downstream recovery.
 
 ---
 
 ## Running Tests
 
-```bash
-# Run all tests with coverage
-pytest tests/ -v --cov=pipeline --cov-report=term-missing
+The test suite contains unit, integration, and full E2E pipeline tests. All tests run against an in-memory SQLite database instance by default, requiring no external databases to run.
 
-# Run only unit tests
-pytest tests/ -v -k "not e2e"
+```bash
+# Run all tests with coverage reports
+pytest tests/ -v --cov=pipeline --cov-report=term-missing
 
 # Run only E2E tests
 pytest tests/test_pipeline_e2e.py -v
+
+# Run benchmarking tests
+pytest tests/ -v -k "benchmark"
 ```
-
-No MySQL server is required — all tests run against in-memory SQLite.
-
----
-
-## SQL Optimizations
-
-### Indexes
-```sql
--- Customer history queries — uses (customer_id, ordered_at)
-INDEX ix_orders_customer_ordered_at (customer_id, ordered_at)
-
--- Status dashboard queries — uses (status, ordered_at)
-INDEX ix_orders_status_ordered_at (status, ordered_at)
-
--- Product category lookups
-INDEX ix_products_category (category_id)
-```
-
-### Bulk Loading Strategy
-- Records are loaded in configurable batches (default: 500 rows)
-- `session.merge()` provides upsert semantics for entities with unique constraints
-- FK maps are resolved with a single `SELECT` per entity type after initial load
-
----
-
-## Schema (3NF)
-
-```
-categories    → id, name, parent_id
-products      → id, sku, name, category_id (FK), price
-customers     → id, name, email, phone
-orders        → id, customer_id (FK), status, total_amount, ordered_at
-order_items   → id, order_id (FK), product_id (FK), quantity, unit_price
-pipeline_runs → id, source, rows_ingested, rows_failed, error_log, started_at, finished_at
-```
-
----
-
-## Edge Cases Handled
-
-| Edge Case | Handling |
-|-----------|---------|
-| Null sentinels (`N/A`, `null`, `none`, `""`, `-`) | Replaced with `None` before validation |
-| Duplicate emails / SKUs | Deduplicated in-memory; first occurrence wins |
-| Malformed NDJSON lines | Logged and skipped; pipeline continues |
-| Multiple date formats | 6 formats tried in order; raises `ValueError` if none match |
-| Oversized fields | Truncated to DB column max length |
-| Unknown FK references | Row skipped, failure counted in metrics |
-| Control characters / mojibake | Stripped / NFC-normalized before validation |
-| Empty CSV files | Returns `[]` without error |
-| API pagination | Follows `next` URL until `None` |

@@ -27,3 +27,4 @@ Thumbs.db
 # Project specific ignores
 pipeline.db
 dead_letter/
+tests/

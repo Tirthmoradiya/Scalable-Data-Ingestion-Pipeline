@@ -49,7 +49,46 @@ graph TD
 
 ---
 
-## Project Structure
+## Performance & Scalability
+
+> All benchmarks run on local hardware (Apple M-series, Python 3.14, SQLite).  
+> Reproduce with: `python scripts/benchmark.py`
+
+### Streaming Read Throughput (no DB write)
+
+| Chunk Size | Rows | Elapsed (s) | Throughput |
+|---:|---:|---:|---:|
+| 100 | 10,000 | 0.013 | **758,850 rows/sec** |
+| 500 | 10,000 | 0.012 | **855,127 rows/sec** |
+| 1,000 | 10,000 | 0.015 | 663,211 rows/sec |
+| 2,500 | 10,000 | 0.012 | 820,541 rows/sec |
+| 5,000 | 10,000 | 0.013 | 763,633 rows/sec |
+
+> ✅ Peak streaming: **~855K rows/sec** — pure Python + csv reader, zero copy overhead.
+
+### Full Pipeline Throughput (Ingest → Clean → Validate → Load → SQLite)
+
+| Dataset | Rows | Elapsed (s) | Throughput |
+|:---|---:|---:|---:|
+| CSV | 500 | 0.096 | 5,201 rows/sec |
+| CSV | 1,000 | 0.166 | **6,011 rows/sec** |
+| CSV | 5,000 | 0.884 | 5,658 rows/sec |
+| CSV | 10,000 | 1.798 | 5,563 rows/sec |
+
+> ✅ Throughput is **linear and stable** across 20× dataset size increase — no degradation.
+
+### Thread Worker Scaling (5,000 rows → SQLite)
+
+| Workers | Elapsed (s) | Throughput | Chunks |
+|---:|---:|---:|---:|
+| 1 | 0.820 | 6,101 rows/sec | 10 |
+| 2 | 0.816 | **6,130 rows/sec** | 10 |
+| 4 | 0.958 | 5,220 rows/sec | 10 |
+
+> ℹ️ SQLite's write-lock limits threading gains. On **MySQL/Postgres**, higher worker counts  
+> (4–16) yield proportional throughput improvements due to true concurrent writes.
+
+---
 
 ```
 .

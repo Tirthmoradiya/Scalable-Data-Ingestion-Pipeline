@@ -2,16 +2,14 @@
 Tests for PipelineRunner — integration tests against file-based SQLite.
 SQLite :memory: cannot be shared across threads, so we use tmp_path.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from pipeline.ingestion.csv_ingester import CSVIngester
 from pipeline.ingestion.json_ingester import JSONIngester
 from pipeline.runner import PipelineRunner
-
 
 SAMPLE_DIR = Path(__file__).parent.parent / "data"
 
@@ -38,7 +36,8 @@ class TestPipelineRunnerCustomers:
     def test_run_creates_pipeline_run_record(self, tmp_path: Path) -> None:
         from sqlalchemy import create_engine, select
         from sqlalchemy.orm import Session
-        from pipeline.models import Base, PipelineRun
+
+        from pipeline.models import PipelineRun
 
         url = sqlite_url(tmp_path)
         runner = PipelineRunner(db_url=url)

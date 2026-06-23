@@ -1,6 +1,7 @@
 """
 Tests for DataProfiler — data quality checks against SQLite.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -61,10 +62,12 @@ class TestTableProfile:
 class TestDataProfilerIntegration:
     def test_profiles_customers_table(self, session: Session) -> None:
         # Seed some customers
-        session.add_all([
-            Customer(name="Alice", email="alice@x.com"),
-            Customer(name="Bob", email="bob@x.com", phone=None),
-        ])
+        session.add_all(
+            [
+                Customer(name="Alice", email="alice@x.com"),
+                Customer(name="Bob", email="bob@x.com", phone=None),
+            ]
+        )
         session.flush()
 
         profiler = DataProfiler(session)
@@ -77,17 +80,17 @@ class TestDataProfilerIntegration:
         assert len(profile.columns) == 3
 
     def test_phone_null_rate_correct(self, session: Session) -> None:
-        session.add_all([
-            Customer(name="Alice", email="a@x.com", phone=None),
-            Customer(name="Bob", email="b@x.com", phone=None),
-            Customer(name="Carol", email="c@x.com", phone="+1-555"),
-        ])
+        session.add_all(
+            [
+                Customer(name="Alice", email="a@x.com", phone=None),
+                Customer(name="Bob", email="b@x.com", phone=None),
+                Customer(name="Carol", email="c@x.com", phone="+1-555"),
+            ]
+        )
         session.flush()
 
         profiler = DataProfiler(session)
-        profile = profiler.profile_table(
-            "customers", ingested_rows=3, columns=["phone"]
-        )
+        profile = profiler.profile_table("customers", ingested_rows=3, columns=["phone"])
         phone_col = profile.columns[0]
         assert phone_col.null_count == 2
         assert phone_col.null_rate == pytest.approx(2 / 3)

@@ -2,11 +2,11 @@
 Tests for the FastAPI status API.
 Uses FastAPI TestClient — no running server required.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from pipeline.api.app import app

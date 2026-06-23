@@ -1,11 +1,11 @@
 """
 Tests for the retry decorator and DeadLetterWriter.
 """
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
 
 import pytest
 

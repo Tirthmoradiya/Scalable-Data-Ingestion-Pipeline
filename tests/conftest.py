@@ -2,6 +2,7 @@
 Shared PyTest fixtures — all tests use an in-memory SQLite database so no
 MySQL server is required to run the test suite.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -22,6 +23,7 @@ def engine():
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
     )
+
     # Enable FK enforcement in SQLite (disabled by default)
     @event.listens_for(_engine, "connect")
     def set_sqlite_pragma(dbapi_conn, _):
@@ -62,8 +64,8 @@ def metrics():
 def raw_customers():
     return [
         {"name": "Alice Johnson", "email": "alice@example.com", "phone": "+1-555-0101"},
-        {"name": "Bob Smith",     "email": "bob@example.com",   "phone": None},
-        {"name": "  Carol  ",     "email": "carol@example.com", "phone": "N/A"},
+        {"name": "Bob Smith", "email": "bob@example.com", "phone": None},
+        {"name": "  Carol  ", "email": "carol@example.com", "phone": "N/A"},
     ]
 
 
@@ -81,9 +83,9 @@ def raw_categories():
 def raw_products():
     return [
         {"sku": "widget-001", "name": "Super Widget", "category": "Electronics", "price": "149.99"},
-        {"sku": "BOOK-042",   "name": "Clean Code",   "category": "Books",       "price": "29.99"},
-        {"sku": "widget-001", "name": "Duplicate",    "category": "Electronics", "price": "1.00"},
-        {"sku": "",           "name": "No SKU",       "category": "Misc",        "price": "9.99"},
+        {"sku": "BOOK-042", "name": "Clean Code", "category": "Books", "price": "29.99"},
+        {"sku": "widget-001", "name": "Duplicate", "category": "Electronics", "price": "1.00"},
+        {"sku": "", "name": "No SKU", "category": "Misc", "price": "9.99"},
     ]
 
 

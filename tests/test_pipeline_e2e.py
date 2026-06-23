@@ -2,19 +2,18 @@
 End-to-end pipeline test:
   sample_orders.csv → clean → validate → transform → SQLite → assertions
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from pipeline.cleaning.cleaner import DataCleaner
 from pipeline.ingestion.csv_ingester import CSVIngester
 from pipeline.ingestion.json_ingester import JSONIngester
 from pipeline.loader.db_loader import DBLoader
-from pipeline.models import Category, Customer, Order, Product
+from pipeline.models import Customer, Order, Product
 from pipeline.transformations.transformer import DataTransformer
 from pipeline.utils.metrics import PipelineMetrics
 
@@ -43,11 +42,14 @@ class TestE2EOrdersPipeline:
         categories = transformer.transform_categories(cat_records)
         loader.load_categories(categories)
         session.flush()
-        cat_map = loader.get_category_map()
 
         # Unique customers from CSV
         customer_records = [
-            {"name": r["customer_name"], "email": r["customer_email"], "phone": r.get("customer_phone")}
+            {
+                "name": r["customer_name"],
+                "email": r["customer_email"],
+                "phone": r.get("customer_phone"),
+            }
             for r in raw
             if r.get("customer_email")
         ]
@@ -97,6 +99,7 @@ class TestE2EOrdersPipeline:
 
     def test_e2e_pipeline_run_audit_persisted(self, session) -> None:
         from pipeline.models import PipelineRun
+
         self._run_pipeline(session)
         run = session.execute(select(PipelineRun)).scalars().first()
         assert run is not None

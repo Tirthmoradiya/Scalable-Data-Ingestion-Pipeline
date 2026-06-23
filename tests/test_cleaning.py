@@ -1,11 +1,13 @@
 """Unit tests for DataCleaner — including Hypothesis property-based tests."""
+
 from __future__ import annotations
 
 import pytest
-from hypothesis import given, settings as h_settings
+from hypothesis import given
+from hypothesis import settings as h_settings
 from hypothesis import strategies as st
 
-from pipeline.cleaning.cleaner import DataCleaner, NULL_SENTINELS
+from pipeline.cleaning.cleaner import NULL_SENTINELS, DataCleaner
 
 
 class TestDataCleaner:
@@ -91,7 +93,11 @@ class TestDataCleaner:
     # ------------------------------------------------------------------
     # Hypothesis property-based tests
     # ------------------------------------------------------------------
-    @given(st.text(min_size=1, max_size=50).filter(lambda s: s.strip() and s.strip().lower() not in NULL_SENTINELS))
+    @given(
+        st.text(min_size=1, max_size=50).filter(
+            lambda s: s.strip() and s.strip().lower() not in NULL_SENTINELS
+        )
+    )
     @h_settings(max_examples=200)
     def test_clean_record_never_modifies_non_string_keys(self, value: str) -> None:
         """Cleaning a simple string field should never raise."""

@@ -1,10 +1,9 @@
 """Integration tests for DBLoader against in-memory SQLite."""
+
 from __future__ import annotations
 
-import pytest
-
 from pipeline.loader.db_loader import DBLoader
-from pipeline.models import Category, Customer, Order, Product
+from pipeline.models import Category, Customer, Order
 from pipeline.utils.metrics import PipelineMetrics
 
 
@@ -38,9 +37,9 @@ class TestDBLoaderCustomers:
         ]
         loader.load_customers(custs)
         session.flush()
-        from pipeline.models import Customer as C
         from sqlalchemy import select
-        rows = session.execute(select(C)).scalars().all()
+
+        rows = session.execute(select(Customer)).scalars().all()
         assert len(rows) == 2
 
     def test_get_customer_map(self, session) -> None:
@@ -68,6 +67,7 @@ class TestDBLoaderOrders:
 
     def test_load_order_persists(self, session) -> None:
         from datetime import datetime
+
         customer_id = self._setup_customer(session)
         loader = DBLoader(session)
         orders = [
@@ -85,7 +85,6 @@ class TestDBLoaderOrders:
 
 class TestSavePipelineRun:
     def test_saves_run_and_returns_object(self, session) -> None:
-        from datetime import datetime
         metrics = PipelineMetrics(source="test_source")
         metrics.record_success(10)
         metrics.record_failure("bad row")

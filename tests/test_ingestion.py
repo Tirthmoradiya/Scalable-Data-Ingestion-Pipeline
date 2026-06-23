@@ -1,16 +1,16 @@
 """Unit tests for CSV, JSON, and API ingesters."""
+
 from __future__ import annotations
 
 import json
-import textwrap
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from pipeline.ingestion.api_ingester import APIIngester
 from pipeline.ingestion.csv_ingester import CSVIngester
 from pipeline.ingestion.json_ingester import JSONIngester
-from pipeline.ingestion.api_ingester import APIIngester
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ class TestCSVIngester:
 
     def test_utf8_encoding(self, tmp_path: Path) -> None:
         csv_file = tmp_path / "utf8.csv"
-        csv_file.write_bytes("name,city\nClàudia,Zürich\n".encode("utf-8"))
+        csv_file.write_bytes("name,city\nClàudia,Zürich\n".encode())
         records = CSVIngester(csv_file, encoding="utf-8").ingest()
         assert records[0]["name"] == "Clàudia"
 
@@ -144,9 +144,7 @@ class TestAPIIngester:
         mock_resp.raise_for_status.return_value = None
 
         with patch("httpx.Client.get", return_value=mock_resp):
-            records = APIIngester(
-                "https://api.example.com/data", data_key=None
-            ).ingest()
+            records = APIIngester("https://api.example.com/data", data_key=None).ingest()
 
         assert len(records) == 2
 
@@ -199,6 +197,7 @@ class TestJSONIngesterChunks:
 
     def test_json_array_chunks(self, tmp_path) -> None:
         import json as _json
+
         f = tmp_path / "data.json"
         f.write_text(_json.dumps([{"id": i} for i in range(7)]))
         chunks = list(JSONIngester(f).ingest_chunks(chunk_size=3))

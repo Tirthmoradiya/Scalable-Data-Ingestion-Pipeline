@@ -1,10 +1,8 @@
 """Unit tests for DataTransformer."""
+
 from __future__ import annotations
 
-import pytest
-
 from pipeline.transformations.transformer import DataTransformer
-from pipeline.utils.metrics import PipelineMetrics
 
 
 class TestTransformCustomers:
@@ -105,7 +103,14 @@ class TestTransformOrders:
         assert metrics.rows_failed == 1
 
     def test_status_normalised_to_lowercase(self, session, metrics) -> None:
-        raw = [{"customer_email": "a@x.com", "status": "COMPLETED", "total_amount": "50", "ordered_at": "2024-01-01"}]
+        raw = [
+            {
+                "customer_email": "a@x.com",
+                "status": "COMPLETED",
+                "total_amount": "50",
+                "ordered_at": "2024-01-01",
+            }
+        ]
         t = DataTransformer(session, metrics)
         result = t.transform_orders(raw, customer_map={"a@x.com": 1})
         assert result[0].status == "completed"

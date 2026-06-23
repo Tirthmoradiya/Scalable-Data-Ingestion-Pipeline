@@ -35,7 +35,6 @@ from typing import Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from pipeline.cleaning.cleaner import DataCleaner
 from pipeline.ingestion.base_ingester import BaseIngester
 from pipeline.loader.db_loader import DBLoader
 from pipeline.models import Base

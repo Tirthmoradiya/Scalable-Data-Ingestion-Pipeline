@@ -60,9 +60,13 @@ class DBLoader:
         # Align keys: determine which columns to include based on objects
         cols_to_include = []
         for col in model_class.__table__.columns:
-            if col.key == "id" and all(getattr(obj, "id", None) is None for obj in objects):
+            if col.key == "id" and all(
+                getattr(obj, "id", None) is None for obj in objects
+            ):
                 continue
-            if col.key == "created_at" and all(getattr(obj, "created_at", None) is None for obj in objects):
+            if col.key == "created_at" and all(
+                getattr(obj, "created_at", None) is None for obj in objects
+            ):
                 continue
             cols_to_include.append(col.key)
 
@@ -80,7 +84,11 @@ class DBLoader:
             self._session.execute(stmt)
             self._session.flush()
             loaded += len(batch)
-            logger.debug("Flushed batch of %d %s rows via bulk insert", len(batch), model_class.__name__)
+            logger.debug(
+                "Flushed batch of %d %s rows via bulk insert",
+                len(batch),
+                model_class.__name__,
+            )
         return loaded
 
     # ------------------------------------------------------------------
@@ -101,9 +109,13 @@ class DBLoader:
         # Align keys: determine which columns to include based on objects
         cols_to_include = []
         for col in model_class.__table__.columns:
-            if col.key == "id" and all(getattr(obj, "id", None) is None for obj in objects):
+            if col.key == "id" and all(
+                getattr(obj, "id", None) is None for obj in objects
+            ):
                 continue
-            if col.key == "created_at" and all(getattr(obj, "created_at", None) is None for obj in objects):
+            if col.key == "created_at" and all(
+                getattr(obj, "created_at", None) is None for obj in objects
+            ):
                 continue
             cols_to_include.append(col.key)
 
@@ -119,28 +131,34 @@ class DBLoader:
             if dialect_name == "sqlite":
                 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-                stmt = sqlite_insert(model_class).values(batch)
-                set_dict = {k: getattr(stmt.excluded, k) for k in update_keys}
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=unique_keys, set_=set_dict
+                sqlite_stmt = sqlite_insert(model_class).values(batch)
+                sqlite_set_dict = {
+                    k: getattr(sqlite_stmt.excluded, k) for k in update_keys
+                }
+                sqlite_stmt = sqlite_stmt.on_conflict_do_update(
+                    index_elements=unique_keys, set_=sqlite_set_dict
                 )
-                self._session.execute(stmt)
+                self._session.execute(sqlite_stmt)
             elif dialect_name in ("postgresql", "postgres"):
                 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-                stmt = pg_insert(model_class).values(batch)
-                set_dict = {k: getattr(stmt.excluded, k) for k in update_keys}
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=unique_keys, set_=set_dict
+                pg_stmt = pg_insert(model_class).values(batch)
+                pg_set_dict = {
+                    k: getattr(pg_stmt.excluded, k) for k in update_keys
+                }
+                pg_stmt = pg_stmt.on_conflict_do_update(
+                    index_elements=unique_keys, set_=pg_set_dict
                 )
-                self._session.execute(stmt)
+                self._session.execute(pg_stmt)
             elif dialect_name == "mysql":
                 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
-                stmt = mysql_insert(model_class).values(batch)
-                set_dict = {k: getattr(stmt.inserted, k) for k in update_keys}
-                stmt = stmt.on_duplicate_key_update(**set_dict)
-                self._session.execute(stmt)
+                mysql_stmt = mysql_insert(model_class).values(batch)
+                mysql_set_dict = {
+                    k: getattr(mysql_stmt.inserted, k) for k in update_keys
+                }
+                mysql_stmt = mysql_stmt.on_duplicate_key_update(**mysql_set_dict)
+                self._session.execute(mysql_stmt)
             else:
                 # Fallback to merge
                 for r in objects[i : i + self._batch_size]:

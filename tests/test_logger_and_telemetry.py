@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -178,9 +178,8 @@ class TestTraceSpan:
             assert span is not None
 
     def test_trace_span_records_exception(self) -> None:
-        with pytest.raises(ValueError, match="test error"):
-            with trace_span("failing_span"):
-                raise ValueError("test error")
+        with pytest.raises(ValueError, match="test error"), trace_span("failing_span"):
+            raise ValueError("test error")
 
     def test_trace_span_multiple_attributes(self) -> None:
         with trace_span("multi_attr", a=1, b="hello", c=True) as span:
@@ -202,9 +201,8 @@ class TestRunTimer:
 
     def test_run_timer_context_manager_on_exception(self) -> None:
         before = ACTIVE_RUNS._value.get()
-        with pytest.raises(RuntimeError):
-            with RunTimer(source="test_timer_err"):
-                raise RuntimeError("fail")
+        with pytest.raises(RuntimeError), RunTimer(source="test_timer_err"):
+            raise RuntimeError("fail")
         after = ACTIVE_RUNS._value.get()
         assert after == before  # active count still decremented
 

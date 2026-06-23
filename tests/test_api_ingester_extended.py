@@ -86,11 +86,6 @@ class TestAPIIngesterRateLimiting:
         success = _make_resp(200, {"results": [{"id": 1}], "next": None})
 
         cb = CircuitBreaker(failure_threshold=10)
-
-        def fake_get(*args, **kwargs):
-            return rate_limited if fake_get.calls == 0 else success
-        fake_get.calls = 0
-
         call_count = 0
 
         def side_effect(*args, **kwargs):
@@ -99,13 +94,12 @@ class TestAPIIngesterRateLimiting:
             call_count += 1
             return resp
 
-        with patch("httpx.Client.get", side_effect=side_effect):
-            with patch("time.sleep"):  # don't actually sleep
-                records = APIIngester(
-                    "https://api.example.com",
-                    circuit_breaker=cb,
-                    max_retries=3,
-                ).ingest()
+        with patch("httpx.Client.get", side_effect=side_effect), patch("time.sleep"):
+            records = APIIngester(
+                "https://api.example.com",
+                circuit_breaker=cb,
+                max_retries=3,
+            ).ingest()
 
         assert len(records) == 1
 
@@ -123,13 +117,12 @@ class TestAPIIngesterRateLimiting:
             return resp
 
         cb = CircuitBreaker(failure_threshold=10)
-        with patch("httpx.Client.get", side_effect=side_effect):
-            with patch("time.sleep"):
-                records = APIIngester(
-                    "https://api.example.com",
-                    circuit_breaker=cb,
-                    max_retries=3,
-                ).ingest()
+        with patch("httpx.Client.get", side_effect=side_effect), patch("time.sleep"):
+            records = APIIngester(
+                "https://api.example.com",
+                circuit_breaker=cb,
+                max_retries=3,
+            ).ingest()
 
         assert len(records) == 1
 
@@ -151,14 +144,13 @@ class TestAPIIngesterServerErrors:
             return resp
 
         cb = CircuitBreaker(failure_threshold=10)
-        with patch("httpx.Client.get", side_effect=side_effect):
-            with patch("time.sleep"):
-                records = APIIngester(
-                    "https://api.example.com",
-                    circuit_breaker=cb,
-                    max_retries=3,
-                    backoff_factor=0.0,
-                ).ingest()
+        with patch("httpx.Client.get", side_effect=side_effect), patch("time.sleep"):
+            records = APIIngester(
+                "https://api.example.com",
+                circuit_breaker=cb,
+                max_retries=3,
+                backoff_factor=0.0,
+            ).ingest()
 
         assert len(records) == 1
 
@@ -166,27 +158,31 @@ class TestAPIIngesterServerErrors:
         server_error = _make_resp(500, {})
 
         cb = CircuitBreaker(failure_threshold=10)
-        with patch("httpx.Client.get", return_value=server_error):
-            with patch("time.sleep"):
-                with pytest.raises(httpx.HTTPStatusError):
-                    APIIngester(
-                        "https://api.example.com",
-                        circuit_breaker=cb,
-                        max_retries=2,
-                        backoff_factor=0.0,
-                    ).ingest()
+        with (
+            patch("httpx.Client.get", return_value=server_error),
+            patch("time.sleep"),
+            pytest.raises(httpx.HTTPStatusError),
+        ):
+            APIIngester(
+                "https://api.example.com",
+                circuit_breaker=cb,
+                max_retries=2,
+                backoff_factor=0.0,
+            ).ingest()
 
     def test_4xx_not_retried_raises_immediately(self) -> None:
         not_found = _make_resp(404, {})
 
         cb = CircuitBreaker(failure_threshold=10)
-        with patch("httpx.Client.get", return_value=not_found):
-            with pytest.raises(httpx.HTTPStatusError):
-                APIIngester(
-                    "https://api.example.com",
-                    circuit_breaker=cb,
-                    max_retries=3,
-                ).ingest()
+        with (
+            patch("httpx.Client.get", return_value=not_found),
+            pytest.raises(httpx.HTTPStatusError),
+        ):
+            APIIngester(
+                "https://api.example.com",
+                circuit_breaker=cb,
+                max_retries=3,
+            ).ingest()
 
 
 # ---------------------------------------------------------------------------
@@ -206,46 +202,43 @@ class TestAPIIngesterNetworkErrors:
             return success
 
         cb = CircuitBreaker(failure_threshold=10)
-        with patch("httpx.Client.get", side_effect=side_effect):
-            with patch("time.sleep"):
-                records = APIIngester(
-                    "https://api.example.com",
-                    circuit_breaker=cb,
-                    max_retries=3,
-                    backoff_factor=0.0,
-                ).ingest()
+        with patch("httpx.Client.get", side_effect=side_effect), patch("time.sleep"):
+            records = APIIngester(
+                "https://api.example.com",
+                circuit_breaker=cb,
+                max_retries=3,
+                backoff_factor=0.0,
+            ).ingest()
 
         assert len(records) == 1
 
     def test_timeout_retries_then_raises(self) -> None:
         cb = CircuitBreaker(failure_threshold=10)
-        with patch(
-            "httpx.Client.get",
-            side_effect=httpx.TimeoutException("timed out"),
+        with (
+            patch("httpx.Client.get", side_effect=httpx.TimeoutException("timed out")),
+            patch("time.sleep"),
+            pytest.raises(httpx.TimeoutException),
         ):
-            with patch("time.sleep"):
-                with pytest.raises(httpx.TimeoutException):
-                    APIIngester(
-                        "https://api.example.com",
-                        circuit_breaker=cb,
-                        max_retries=2,
-                        backoff_factor=0.0,
-                    ).ingest()
+            APIIngester(
+                "https://api.example.com",
+                circuit_breaker=cb,
+                max_retries=2,
+                backoff_factor=0.0,
+            ).ingest()
 
     def test_network_error_all_retries_raises(self) -> None:
         cb = CircuitBreaker(failure_threshold=10)
-        with patch(
-            "httpx.Client.get",
-            side_effect=httpx.NetworkError("no route"),
+        with (
+            patch("httpx.Client.get", side_effect=httpx.NetworkError("no route")),
+            patch("time.sleep"),
+            pytest.raises(httpx.NetworkError),
         ):
-            with patch("time.sleep"):
-                with pytest.raises(httpx.NetworkError):
-                    APIIngester(
-                        "https://api.example.com",
-                        circuit_breaker=cb,
-                        max_retries=2,
-                        backoff_factor=0.0,
-                    ).ingest()
+            APIIngester(
+                "https://api.example.com",
+                circuit_breaker=cb,
+                max_retries=2,
+                backoff_factor=0.0,
+            ).ingest()
 
 
 # ---------------------------------------------------------------------------

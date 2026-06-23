@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -27,7 +27,7 @@ class TestRunResultSummary:
         assert "abcd1234" in summary
 
     def test_summary_with_finished_at(self) -> None:
-        from datetime import UTC, datetime, timedelta
+        from datetime import timedelta
 
         result = RunResult(run_id="abcd1234-xxxx", source="test")
         result.finished_at = result.started_at + timedelta(seconds=3)
@@ -117,10 +117,12 @@ class TestFlushWithRetry:
         runner._settings.pipeline.retry_max_attempts = 1
         runner._settings.pipeline.retry_backoff_factor = 0.0
 
-        with Session(engine) as session:
-            with patch.object(session, "commit", side_effect=RuntimeError("db error")):
-                with pytest.raises(RuntimeError, match="db error"):
-                    runner._flush_with_retry(session)
+        with (
+            Session(engine) as session,
+            patch.object(session, "commit", side_effect=RuntimeError("db error")),
+            pytest.raises(RuntimeError, match="db error"),
+        ):
+            runner._flush_with_retry(session)
 
     def test_flush_retries_then_succeeds(self, tmp_path: Path) -> None:
         from sqlalchemy import create_engine
@@ -143,10 +145,12 @@ class TestFlushWithRetry:
             if call_count < 2:
                 raise RuntimeError("transient")
 
-        with Session(engine) as session:
-            with patch.object(session, "commit", side_effect=flaky_commit):
-                with patch("time.sleep"):
-                    runner._flush_with_retry(session)  # should not raise
+        with (
+            Session(engine) as session,
+            patch.object(session, "commit", side_effect=flaky_commit),
+            patch("time.sleep"),
+        ):
+            runner._flush_with_retry(session)  # should not raise
 
         assert call_count == 2
 
@@ -161,8 +165,8 @@ class TestSaveRunFailure:
         runner = PipelineRunner(db_url=sqlite_url(tmp_path))
 
         # Simulate DBLoader.save_pipeline_run raising
-        with patch("pipeline.runner.DBLoader") as MockLoader:
-            MockLoader.return_value.save_pipeline_run.side_effect = RuntimeError("db fail")
+        with patch("pipeline.runner.DBLoader") as mock_loader:
+            mock_loader.return_value.save_pipeline_run.side_effect = RuntimeError("db fail")
             metrics = PipelineMetrics(source="test")
             # Should not raise — error is logged and swallowed
             runner._save_run(metrics)

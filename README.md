@@ -1,5 +1,10 @@
 # Scalable Data Ingestion Pipeline
 
+![CI](https://github.com/Tirthmoradiya/Scalable-Data-Ingestion-Pipeline/actions/workflows/ci.yml/badge.svg)
+![Coverage](https://img.shields.io/badge/coverage-94%25-brightgreen)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
+![License](https://img.shields.io/badge/license-MIT-blue)
+
 A production-grade, highly scalable Python data pipeline that streams, cleans, validates, and bulk-loads datasets into a normalized database. Built with a modular architecture supporting CSV, JSON, NDJSON, and Parquet formats, paginated REST APIs, persistent job scheduling, OpenTelemetry tracing, Prometheus metrics, and automated post-load quality profiling.
 
 ---
@@ -14,12 +19,12 @@ graph TD
     D -->|Strict Validation| E[DataTransformer]
     E -->|FK Resolution & Deduplication| F[DBLoader]
     F -->|Batched session.merge| G[(MySQL / SQLite Database)]
-    
+
     %% Error Handling
     D -->|Validation Errors| H[Dead-Letter Queue JSONL]
     F -->|DB Constraints / Failures| I[Tenacity Retry Loop]
     I -->|Max Attempts Exhausted| H
-    
+
     %% Control & Monitoring
     K[FastAPI / REST API] -->|Monitor Runs & Health| G
     L[Prometheus / OTel] -->|Scrape Metrics & Spans| B
@@ -52,8 +57,8 @@ graph TD
 ├── main.py                    # Legacy CLI / simple entry point
 ├── Dockerfile                 # Multi-stage production Docker image
 ├── docker-compose.yml         # Container definitions for MySQL/Prometheus/OTel
-├── pyproject.toml             # Project metadata, Ruff & Mypy configurations
-├── requirements.txt           # Lockfile for external dependencies
+├── pyproject.toml             # Project metadata, dependencies, Ruff & Mypy config
+├── requirements.txt           # Flat dependency list for external tools / Docker
 ├── .env.example               # Template environment configuration
 ├── sql/
 │   ├── schema.sql             # 3NF MySQL Database Schema & Composite Indexes
@@ -64,7 +69,6 @@ graph TD
 │   └── sample_events.ndjson
 ├── pipeline/
 │   ├── __init__.py
-│   ├── config.py              # Backward-compatible DB configuration helper
 │   ├── settings.py            # Pydantic Settings composition and env validation
 │   ├── models.py              # SQLAlchemy ORM schemas (Customers, Orders, Items, etc.)
 │   ├── runner.py              # PipelineRunner orchestrator (multithreaded engine)
@@ -78,7 +82,7 @@ graph TD
 │   │   ├── csv_ingester.py    # Chunked CSV files ingester
 │   │   ├── json_ingester.py   # Chunked JSON & NDJSON ingester
 │   │   ├── parquet_ingester.py # Streaming PyArrow Parquet ingester
-│   │   └── api_ingester.py    # Paginated HTTP REST API ingester
+│   │   └── api_ingester.py    # Paginated HTTP REST API ingester with CircuitBreaker
 │   ├── cleaning/
 │   │   ├── __init__.py
 │   │   ├── cleaner.py         # Null sentinels, Unicode NFC, stripping & truncation
@@ -89,43 +93,79 @@ graph TD
 │   ├── loader/
 │   │   ├── __init__.py
 │   │   └── db_loader.py       # Batched DB bulk upsert and audit logging
-│   └── quality/
+│   ├── quality/
 │   │   ├── __init__.py
 │   │   └── profiler.py        # Post-load Table/Column profile reports
 │   └── utils/
 │       ├── __init__.py
 │       ├── logger.py          # Structured run-scoped logging via structlog
 │       ├── metrics.py         # PipelineMetrics accumulator
-│       ├── telemetry.py       # OTel tracing hook + Prometheus collectors
-│       ├── circuit_breaker.py # Thread-safe CircuitBreaker for external I/O
+│       ├── telemetry.py       # OTel tracing + Prometheus collectors & RunTimer
+│       ├── circuit_breaker.py # Thread-safe CircuitBreaker (CLOSED/OPEN/HALF_OPEN)
 │       └── retry.py           # Tenacity wrappers & DeadLetterWriter
-└── tests/                     # Comprehensive testing suite (unit/integration/E2E)
-    ├── conftest.py            # SQLite fixtures, engine, and sample data generator
-    ├── test_ingestion.py      # Ingester test cases
-    ├── test_cleaning.py       # Pre-validation cleaner tests
-    ├── test_validators.py     # Pydantic schema validation tests
-    ├── test_transformations.py # FK resolution and dedup tests
-    ├── test_loader.py         # DBLoader bulk-merge integration tests
-    ├── test_runner.py         # Orchestrator test cases
-    ├── test_settings.py       # Pydantic Settings loading tests
-    ├── test_quality.py        # Quality Profiler validation tests
-    ├── test_retry.py          # Retry and Dead-Letter Queue writer tests
-    └── test_pipeline_e2e.py   # Full SQLite in-memory end-to-end flow tests
+└── tests/                     # Comprehensive test suite (unit/integration/E2E)
+    ├── conftest.py                    # SQLite fixtures, engine, and sample data
+    ├── test_api.py                    # FastAPI endpoint tests
+    ├── test_api_ingester_extended.py  # APIIngester retry/rate-limit/circuit-breaker tests
+    ├── test_circuit_breaker.py        # CircuitBreaker state-machine tests
+    ├── test_cleaning.py               # Pre-validation cleaner tests
+    ├── test_ingestion.py              # CSV/JSON/NDJSON ingester tests
+    ├── test_loader.py                 # DBLoader bulk-merge integration tests
+    ├── test_logger_and_telemetry.py   # Logger & Prometheus/OTel telemetry tests
+    ├── test_parquet_ingester.py       # ParquetIngester streaming/projection tests
+    ├── test_pipeline_e2e.py           # Full SQLite in-memory end-to-end flow tests
+    ├── test_quality.py                # Quality Profiler validation tests
+    ├── test_retry.py                  # Retry and Dead-Letter Queue writer tests
+    ├── test_runner.py                 # PipelineRunner orchestrator tests
+    ├── test_runner_extended.py        # Runner edge-case & branch coverage tests
+    ├── test_settings.py               # Pydantic Settings loading tests
+    ├── test_transformations.py        # FK resolution and dedup tests
+    └── test_validators.py             # Pydantic schema validation tests
+```
+
+---
+
+## CI / CD Pipeline
+
+Every push to `main` or `develop` and every pull request to `main` triggers a full CI pipeline on GitHub Actions:
+
+| Job | What it does |
+| :--- | :--- |
+| **Lint** | Runs `ruff check` and `ruff format --check` on all source & test files |
+| **Type Check** | Runs `mypy` on the `pipeline/` package |
+| **Tests (3.11 & 3.12)** | Runs the full pytest suite with `--cov-fail-under=90` (currently **94%**) |
+| **Docker Build** | Builds the production Docker image and runs a settings smoke-test |
+
+```yaml
+# Actions used (all Node 24-compatible)
+actions/checkout@v7
+actions/setup-python@v6
+codecov/codecov-action@v7
 ```
 
 ---
 
 ## Quick Start
 
-### 1. Install Dependencies
+### Prerequisites
+- Python ≥ 3.11
+- pip ≥ 23 with setuptools ≥ 64 (required for PEP 660 editable installs)
+- Docker (optional, for containerised runs)
+- MySQL (optional — SQLite works out of the box for development)
+
+### 1. Install in Editable / Dev Mode
 ```bash
-pip install -r requirements.txt
+# Upgrade pip and setuptools first (avoids BackendUnavailable errors)
+pip install --upgrade pip "setuptools>=64" wheel
+
+# Install the package + all dev dependencies
+pip install -e ".[dev]"
 ```
 
 ### 2. Configure Environment
 ```bash
 cp .env.example .env
-# Edit .env with your configuration settings (MySQL credentials, log level, etc.)
+# Edit .env with your settings (MySQL credentials, log level, etc.)
 ```
 
 ### 3. Apply Schema & Migrations
@@ -141,10 +181,9 @@ python cli.py migrate
 
 ## CLI Usage Guide
 
-The production CLI is built with **Typer** and **Rich** to provide a rich terminal experience. Running `python cli.py` with no arguments will show the interactive help menu.
+The production CLI is built with **Typer** and **Rich** to provide a rich terminal experience. Running `python cli.py` with no arguments shows the interactive help menu.
 
 ### Ingest Data
-Ingest dataset files or API endpoints directly into the database.
 ```bash
 # Ingest customers CSV file (SQLite local database)
 python cli.py ingest --source csv --file data/sample_orders.csv --entity customers --db-url sqlite
@@ -154,27 +193,27 @@ python cli.py ingest --source json --file data/sample_products.json --entity pro
 
 # Stream NDJSON event data using 8 worker threads and chunk size of 5000
 python cli.py ingest --source ndjson --file data/sample_events.ndjson --entity orders --workers 8 --chunk-size 5000
+
+# Ingest from a paginated REST API
+python cli.py ingest --source api --url https://api.example.com/orders --entity orders
 ```
 
 ### Show Pipeline Status
-Show a formatted audit log of recent pipeline runs directly from the database.
 ```bash
 python cli.py status --limit 15
 ```
 
 ### Start API Server
-Launch the FastAPI monitoring API.
 ```bash
 python cli.py api --port 8000 --host 0.0.0.0
 ```
 
 ### Manage Scheduled Jobs
-Manage persistent APScheduler jobs stored in your database.
 ```bash
-# Add a scheduled ingestion job running on a cron schedule
+# Add a cron-scheduled ingestion job (every hour)
 python cli.py schedule add --source csv --file data/sample_orders.csv --entity orders --cron "0 * * * *"
 
-# Add a scheduled job running every 30 minutes
+# Add a job that runs every 30 minutes
 python cli.py schedule add --source json --file data/sample_products.json --entity products --every 30
 
 # List all current scheduled jobs
@@ -182,55 +221,137 @@ python cli.py schedule list
 ```
 
 ### Profile Data Quality
-Generate a detailed post-load quality report for any database table.
 ```bash
 python cli.py profile orders --ingested 10000
 ```
 
 ---
 
+## Docker
+
+The Docker image uses a multi-stage build for a lean production image.
+
+```bash
+# Build the image
+docker build -t data-pipeline .
+
+# Run the CLI (shows help by default)
+docker run --rm data-pipeline
+
+# Run a smoke test (override ENTRYPOINT to access Python directly)
+docker run --rm --entrypoint python data-pipeline -c "from pipeline.settings import settings; print('Settings OK')"
+
+# Run with docker-compose (MySQL + Prometheus + OTel Collector)
+docker-compose up
+```
+
+> **Note:** The Dockerfile installs all dependencies declared in `pyproject.toml` via
+> `pip install .` — so the image is always in sync with the project's dependency list.
+
+---
+
 ## Observability & Monitoring
 
 ### FastAPI Dashboard
-When the API server is running (`python cli.py api`), the following endpoints are available:
-- **`GET /health`**: Health status probe checking general connectivity and database reachability.
-- **`GET /runs`**: Paginated summaries of recent runs including ingested/failed counts and duration.
-- **`GET /runs/{run_id}`**: Detailed information on a specific pipeline run, containing full exception error logs if failures occurred.
-- **`GET /metrics`**: Prometheus-formatted text metrics.
-- **`GET /docs`**: Automated interactive API documentation (Swagger UI).
+When the API server is running (`python cli.py api`), these endpoints are available:
+
+| Endpoint | Description |
+| :--- | :--- |
+| `GET /health` | Liveness + DB connectivity probe |
+| `GET /runs` | Paginated run audit log (newest first) |
+| `GET /runs/{run_id}` | Full run detail including error log |
+| `GET /metrics` | Prometheus text-format metrics |
+| `GET /docs` | Swagger UI (auto-generated) |
+| `GET /redoc` | ReDoc UI |
 
 ### Prometheus Metrics
-If metrics are enabled, the pipeline instruments the following metrics:
-- `pipeline_rows_ingested_total` (Labels: `source`, `entity`): Successfully loaded records.
-- `pipeline_rows_failed_total` (Labels: `source`, `reason_category`): Records that failed validation or loading.
-- `pipeline_batch_duration_seconds` (Labels: `source`): Ingestion execution duration histogram.
-- `pipeline_run_duration_seconds` (Labels: `source`, `status`): Full pipeline execution time.
-- `pipeline_active_runs`: Gauge of runs currently in progress.
-- `pipeline_circuit_breaker_opens_total` (Labels: `breaker_name`): Count of circuit breaker trip events.
+
+| Metric | Labels | Description |
+| :--- | :--- | :--- |
+| `pipeline_rows_ingested_total` | `source`, `entity` | Successfully loaded records |
+| `pipeline_rows_failed_total` | `source`, `reason_category` | Records that failed validation or loading |
+| `pipeline_batch_duration_seconds` | `source` | Per-chunk processing duration histogram |
+| `pipeline_run_duration_seconds` | `source`, `status` | Full pipeline run duration |
+| `pipeline_active_runs` | — | Gauge of runs currently in progress |
+| `pipeline_circuit_breaker_opens_total` | `breaker_name` | Circuit breaker trip event counter |
+| `pipeline_db_pool_size` | — | SQLAlchemy connection pool size gauge |
 
 ---
 
 ## Robustness & Error Handling
 
 - **Unicode Mojibake / Whitespace**: `DataCleaner` normalizes encoding to NFC, drops illegal control characters, strips whitespace, and truncates fields exceeding database size constraints before schema validation.
-- **Pydantic Validation**: Strict schema verification filters out rows containing mismatched types, bad emails, or missing keys. Valid records pass to transformations; invalid records bypass execution.
+- **Pydantic Validation**: Strict schema verification filters out rows containing mismatched types, bad emails, or missing keys.
 - **Dead-Letter Queue (DLQ)**: Records that fail schema validation or SQLAlchemy load steps are written to `dead_letter/{run_id}.jsonl` containing the exact error reason, timestamp, and raw payload.
-- **Tenacity Retries**: Multi-worker loaders apply a thread-safe exponential back-off strategy during database flush calls to prevent transient lock contention failures.
-- **Circuit Breaker**: Outgoing REST API requests run through a thread-safe `CircuitBreaker`. If downstream APIs throw repeated failures, the breaker opens, instantly throwing `CircuitOpenError` to prevent wasting resources and allow downstream recovery.
+- **Tenacity Retries**: Multi-worker loaders apply exponential back-off during DB flush calls to prevent transient lock contention failures.
+- **Circuit Breaker**: Outgoing REST API requests run through a thread-safe `CircuitBreaker` with `CLOSED → OPEN → HALF_OPEN` state machine. Supports configurable failure thresholds, recovery timeouts, and success thresholds. Can be used as a decorator or context manager.
 
 ---
 
 ## Running Tests
 
-The test suite contains unit, integration, and full E2E pipeline tests. All tests run against an in-memory SQLite database instance by default, requiring no external databases to run.
+The test suite contains **245+ unit, integration, and full E2E pipeline tests** running against an in-memory SQLite database — no external services required.
 
 ```bash
-# Run all tests with coverage reports
-pytest tests/ -v --cov=pipeline --cov-report=term-missing
+# Run all tests with coverage (must reach 90%)
+pytest tests/ -v --cov=pipeline --cov-report=term-missing --cov-fail-under=90
 
-# Run only E2E tests
+# Run only end-to-end tests
 pytest tests/test_pipeline_e2e.py -v
+
+# Run circuit breaker tests
+pytest tests/test_circuit_breaker.py -v
+
+# Run API ingester retry/fault-tolerance tests
+pytest tests/test_api_ingester_extended.py -v
 
 # Run benchmarking tests
 pytest tests/ -v -k "benchmark"
 ```
+
+### Coverage Summary (current)
+
+| Module | Coverage |
+| :--- | :--- |
+| `pipeline/utils/circuit_breaker.py` | **100%** |
+| `pipeline/utils/logger.py` | **100%** |
+| `pipeline/utils/retry.py` | **100%** |
+| `pipeline/ingestion/csv_ingester.py` | **100%** |
+| `pipeline/cleaning/cleaner.py` | **100%** |
+| `pipeline/settings.py` | **100%** |
+| `pipeline/ingestion/api_ingester.py` | **99%** |
+| `pipeline/ingestion/parquet_ingester.py` | **95%** |
+| `pipeline/runner.py` | **96%** |
+| `pipeline/utils/telemetry.py` | **94%** |
+| **TOTAL** | **94%** |
+
+---
+
+## Environment Variables Reference
+
+All settings are configured via environment variables (or `.env` files). See `.env.example` for a complete template.
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `ENVIRONMENT` | `development` | App environment (`development` / `staging` / `production`) |
+| `DB_HOST` | `localhost` | MySQL host |
+| `DB_PORT` | `3306` | MySQL port |
+| `DB_NAME` | `data_pipeline` | Database name |
+| `DB_USER` | `root` | Database user |
+| `DB_PASSWORD` | _(empty)_ | Database password |
+| `DB_POOL_SIZE` | `10` | SQLAlchemy connection pool size |
+| `DB_MAX_OVERFLOW` | `20` | Max connections above pool size |
+| `DB_POOL_RECYCLE` | `1800` | Pool recycle interval (seconds) |
+| `PIPELINE_BATCH_SIZE` | `500` | Rows per DB batch |
+| `PIPELINE_MAX_WORKERS` | `4` | Thread pool worker count |
+| `PIPELINE_CHUNK_SIZE` | `1000` | Rows per ingestion chunk |
+| `PIPELINE_DEAD_LETTER_DIR` | `dead_letter` | DLQ output directory |
+| `PIPELINE_RETRY_MAX_ATTEMPTS` | `3` | Max DB flush retry attempts |
+| `PIPELINE_RETRY_BACKOFF_FACTOR` | `0.5` | Exponential backoff multiplier |
+| `OBS_LOG_LEVEL` | `INFO` | Log level |
+| `OBS_LOG_FORMAT` | `console` | Log format (`console` or `json`) |
+| `OBS_METRICS_ENABLED` | `true` | Enable Prometheus metrics |
+| `OBS_METRICS_PORT` | `9090` | Prometheus metrics server port |
+| `OBS_TRACING_ENABLED` | `false` | Enable OpenTelemetry tracing |
+| `API_HOST` | `0.0.0.0` | FastAPI bind host |
+| `API_PORT` | `8000` | FastAPI bind port |

@@ -3,21 +3,24 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install build tools
+# Install build tools needed for native extensions (e.g. grpcio, pyarrow)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         gcc \
+        g++ \
         libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency spec first (layer cache)
-COPY pyproject.toml ./
-COPY requirements.txt ./
+# Upgrade pip + setuptools first (required for PEP 660 editable / build backends)
+RUN pip install --upgrade pip "setuptools>=64" wheel
 
-# Install all deps into a prefix we can copy into the runtime stage
-RUN pip install --prefix=/install --no-cache-dir \
-    sqlalchemy pymysql "pydantic[email]" pydantic-settings python-dotenv structlog \
-    prometheus-client tenacity pandas requests typer rich fastapi uvicorn \
-    apscheduler alembic httpx opentelemetry-api opentelemetry-sdk
+# Copy only the files pip needs to resolve dependencies (better layer caching)
+COPY pyproject.toml ./
+COPY pipeline/ ./pipeline/
+COPY cli.py ./
+
+# Install the package and ALL its declared dependencies into /install
+# This reads pyproject.toml so it never gets out of sync with the dep list
+RUN pip install --prefix=/install --no-cache-dir .
 
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
@@ -31,12 +34,12 @@ RUN groupadd -r pipeline && useradd -r -g pipeline pipeline
 
 WORKDIR /app
 
-# Copy installed packages from builder
+# Copy installed packages (includes pipeline package + all deps) from builder
 COPY --from=builder /install /usr/local
 
 # Copy application source
 COPY pipeline/ ./pipeline/
-COPY cli.py main.py alembic.ini* ./
+COPY cli.py main.py ./
 COPY sql/ ./sql/
 COPY data/ ./data/
 

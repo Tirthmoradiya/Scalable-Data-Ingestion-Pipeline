@@ -13,23 +13,23 @@ A production-grade, highly scalable Python data pipeline that streams, cleans, v
 
 ```mermaid
 graph TD
-    A[Data Sources: CSV, JSON, NDJSON, Parquet, API] -->|Stream / Chunks| B[PipelineRunner]
-    B -->|Thread Pool Execution| C[DataCleaner]
-    C -->|Strip, Unicode NFC, Truncate, Nullify| D[Pydantic v2 Validators]
-    D -->|Strict Validation| E[DataTransformer]
-    E -->|FK Resolution & Deduplication| F[DBLoader]
-    F -->|Batched session.merge| G[(MySQL / SQLite Database)]
+    A[Data Sources: CSV, JSON, NDJSON, Parquet, API] -->|Stream| B[PipelineRunner]
+    B -->|Threads| C[DataCleaner]
+    C -->|Clean| D[Pydantic v2 Validators]
+    D -->|Validate| E[DataTransformer]
+    E -->|Transform| F[DBLoader]
+    F -->|Bulk Load| G[(MySQL / SQLite Database)]
 
     %% Error Handling
-    D -->|Validation Errors| H[Dead-Letter Queue JSONL]
-    F -->|DB Constraints / Failures| I[Tenacity Retry Loop]
-    I -->|Max Attempts Exhausted| H
+    D -->|Errors| H[Dead-Letter Queue JSONL]
+    F -->|Retry| I[Tenacity Retry Loop]
+    I -->|Failed| H
 
     %% Control & Monitoring
-    K[FastAPI / REST API] -->|Monitor Runs & Health| G
-    L[Prometheus / OTel] -->|Scrape Metrics & Spans| B
-    M[APScheduler] -->|Persistent Job Store| B
-    N[DataProfiler] -->|Post-Load Reconciliation| G
+    K[FastAPI / REST API] -->|Monitor| G
+    L[Prometheus / OTel] -->|Metrics| B
+    M[APScheduler] -->|Schedule| B
+    N[DataProfiler] -->|Reconcile| G
 ```
 
 ---

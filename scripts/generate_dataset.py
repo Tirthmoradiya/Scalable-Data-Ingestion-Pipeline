@@ -6,17 +6,19 @@ memory-efficient manner using Python's built-in csv writer.
 
 Usage
 -----
-    python scripts/generate_dataset.py --rows 1000000 --out data/scale/orders_1m.csv
-    python scripts/generate_dataset.py --rows 5000000 --out data/scale/orders_5m.csv --type orders
-    python scripts/generate_dataset.py --rows 500000  --out data/scale/products_500k.csv --type products
+    python scripts/generate_dataset.py --rows 1000000 \
+        --out data/scale/orders_1m.csv
+    python scripts/generate_dataset.py --rows 5000000 \
+        --out data/scale/orders_5m.csv --type orders
+    python scripts/generate_dataset.py --rows 500000 \
+        --out data/scale/products_500k.csv --type products
 """
+
 from __future__ import annotations
 
 import argparse
 import csv
-import os
 import random
-import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -24,28 +26,119 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Constant pools — pre-generated to avoid per-row computation
 # ---------------------------------------------------------------------------
-FIRST_NAMES = ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Grace", "Henry",
-               "Iris", "Jack", "Kate", "Leo", "Mia", "Noah", "Olivia", "Paul",
-               "Quinn", "Rachel", "Sam", "Tina", "Uma", "Victor", "Wendy", "Xander",
-               "Yara", "Zoe", "Aaron", "Beth", "Carl", "Diana"]
+FIRST_NAMES = [
+    "Alice",
+    "Bob",
+    "Carol",
+    "Dave",
+    "Eve",
+    "Frank",
+    "Grace",
+    "Henry",
+    "Iris",
+    "Jack",
+    "Kate",
+    "Leo",
+    "Mia",
+    "Noah",
+    "Olivia",
+    "Paul",
+    "Quinn",
+    "Rachel",
+    "Sam",
+    "Tina",
+    "Uma",
+    "Victor",
+    "Wendy",
+    "Xander",
+    "Yara",
+    "Zoe",
+    "Aaron",
+    "Beth",
+    "Carl",
+    "Diana",
+]
 
-LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
-              "Davis", "Wilson", "Anderson", "Taylor", "Thomas", "Jackson", "White",
-              "Harris", "Martin", "Thompson", "Young", "Hall", "Allen"]
+LAST_NAMES = [
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Wilson",
+    "Anderson",
+    "Taylor",
+    "Thomas",
+    "Jackson",
+    "White",
+    "Harris",
+    "Martin",
+    "Thompson",
+    "Young",
+    "Hall",
+    "Allen",
+]
 
-DOMAINS = ["gmail.com", "yahoo.com", "outlook.com", "company.io", "enterprise.net",
-           "example.com", "corp.ai", "techfirm.co"]
+DOMAINS = [
+    "gmail.com",
+    "yahoo.com",
+    "outlook.com",
+    "company.io",
+    "enterprise.net",
+    "example.com",
+    "corp.ai",
+    "techfirm.co",
+]
 
 STATUSES = ["pending", "completed", "shipped", "cancelled", "processing", "returned"]
 
-CATEGORIES = ["Electronics", "Books", "Clothing", "Home", "Sports", "Toys",
-              "Beauty", "Automotive", "Garden", "Food", "Health", "Office"]
+CATEGORIES = [
+    "Electronics",
+    "Books",
+    "Clothing",
+    "Home",
+    "Sports",
+    "Toys",
+    "Beauty",
+    "Automotive",
+    "Garden",
+    "Food",
+    "Health",
+    "Office",
+]
 
-PRODUCT_ADJECTIVES = ["Super", "Ultra", "Pro", "Max", "Plus", "Elite", "Prime",
-                       "Advanced", "Smart", "Precision", "Compact", "Deluxe"]
+PRODUCT_ADJECTIVES = [
+    "Super",
+    "Ultra",
+    "Pro",
+    "Max",
+    "Plus",
+    "Elite",
+    "Prime",
+    "Advanced",
+    "Smart",
+    "Precision",
+    "Compact",
+    "Deluxe",
+]
 
-PRODUCT_NOUNS = ["Widget", "Gadget", "Device", "Tool", "Kit", "Module", "Unit",
-                  "System", "Pack", "Set", "Bundle", "Collection"]
+PRODUCT_NOUNS = [
+    "Widget",
+    "Gadget",
+    "Device",
+    "Tool",
+    "Kit",
+    "Module",
+    "Unit",
+    "System",
+    "Pack",
+    "Set",
+    "Bundle",
+    "Collection",
+]
 
 BASE_DATE = datetime(2020, 1, 1)
 MAX_DATE_OFFSET = (datetime(2024, 12, 31) - BASE_DATE).days
@@ -86,19 +179,21 @@ def generate_orders(writer: csv.DictWriter, n: int, progress_every: int = 100_00
         qty = random.randint(1, 10)
         unit_price = float(random_price(0.99, 499.99))
         total = round(qty * unit_price, 2)
-        writer.writerow({
-            "order_id": i,
-            "customer_email": random_email(first, last, i),
-            "customer_name": f"{first} {last}",
-            "customer_phone": random_phone(),
-            "status": random.choices(STATUSES, weights=STATUS_WEIGHTS, k=1)[0],
-            "total_amount": f"{total:.2f}",
-            "ordered_at": random_date(),
-            "product_sku": f"SKU-{random.randint(1, 50000):06d}",
-            "quantity": qty,
-            "unit_price": f"{unit_price:.2f}",
-            "category": random.choice(CATEGORIES),
-        })
+        writer.writerow(
+            {
+                "order_id": i,
+                "customer_email": random_email(first, last, i),
+                "customer_name": f"{first} {last}",
+                "customer_phone": random_phone(),
+                "status": random.choices(STATUSES, weights=STATUS_WEIGHTS, k=1)[0],
+                "total_amount": f"{total:.2f}",
+                "ordered_at": random_date(),
+                "product_sku": f"SKU-{random.randint(1, 50000):06d}",
+                "quantity": qty,
+                "unit_price": f"{unit_price:.2f}",
+                "category": random.choice(CATEGORIES),
+            }
+        )
         if i % progress_every == 0:
             pct = i / n * 100
             print(f"  {i:>10,} / {n:,}  ({pct:.0f}%)", end="\r", flush=True)
@@ -110,12 +205,14 @@ def generate_products(writer: csv.DictWriter, n: int, progress_every: int = 100_
     for i in range(1, n + 1):
         adj = random.choice(PRODUCT_ADJECTIVES)
         noun = random.choice(PRODUCT_NOUNS)
-        writer.writerow({
-            "sku": f"SKU-{i:06d}",
-            "name": f"{adj} {noun} {i}",
-            "category": random.choice(CATEGORIES),
-            "price": random_price(0.99, 9999.99),
-        })
+        writer.writerow(
+            {
+                "sku": f"SKU-{i:06d}",
+                "name": f"{adj} {noun} {i}",
+                "category": random.choice(CATEGORIES),
+                "price": random_price(0.99, 9999.99),
+            }
+        )
         if i % progress_every == 0:
             pct = i / n * 100
             print(f"  {i:>10,} / {n:,}  ({pct:.0f}%)", end="\r", flush=True)
@@ -127,11 +224,13 @@ def generate_customers(writer: csv.DictWriter, n: int, progress_every: int = 100
     for i in range(1, n + 1):
         first = random.choice(FIRST_NAMES)
         last = random.choice(LAST_NAMES)
-        writer.writerow({
-            "name": f"{first} {last}",
-            "email": random_email(first, last, i),
-            "phone": random_phone(),
-        })
+        writer.writerow(
+            {
+                "name": f"{first} {last}",
+                "email": random_email(first, last, i),
+                "phone": random_phone(),
+            }
+        )
         if i % progress_every == 0:
             pct = i / n * 100
             print(f"  {i:>10,} / {n:,}  ({pct:.0f}%)", end="\r", flush=True)
@@ -139,10 +238,22 @@ def generate_customers(writer: csv.DictWriter, n: int, progress_every: int = 100
 
 
 GENERATORS = {
-    "orders": (generate_orders, ["order_id", "customer_email", "customer_name",
-                                  "customer_phone", "status", "total_amount",
-                                  "ordered_at", "product_sku", "quantity",
-                                  "unit_price", "category"]),
+    "orders": (
+        generate_orders,
+        [
+            "order_id",
+            "customer_email",
+            "customer_name",
+            "customer_phone",
+            "status",
+            "total_amount",
+            "ordered_at",
+            "product_sku",
+            "quantity",
+            "unit_price",
+            "category",
+        ],
+    ),
     "products": (generate_products, ["sku", "name", "category", "price"]),
     "customers": (generate_customers, ["name", "email", "phone"]),
 }

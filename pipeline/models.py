@@ -3,13 +3,14 @@ SQLAlchemy ORM models — normalized 3NF schema.
 
 Tables
 ------
-categories      – product category hierarchy
-products        – product catalogue
-customers       – customer master data
-orders          – order header
-order_items     – order line items (bridge between orders & products)
-pipeline_runs   – audit log for every pipeline execution
+categories      - product category hierarchy
+products        - product catalogue
+customers       - customer master data
+orders          - order header
+order_items     - order line items (bridge between orders & products)
+pipeline_runs   - audit log for every pipeline execution
 """
+
 from datetime import datetime
 
 from sqlalchemy import (
@@ -108,15 +109,9 @@ class Order(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    customer_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("customers.id"), nullable=False
-    )
-    status: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="pending"
-    )
-    total_amount: Mapped[float] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0.0
-    )
+    customer_id: Mapped[int] = mapped_column(Integer, ForeignKey("customers.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    total_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0.0)
     ordered_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
@@ -136,12 +131,8 @@ class OrderItem(Base):
     __tablename__ = "order_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    order_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("orders.id"), nullable=False
-    )
-    product_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("products.id"), nullable=False
-    )
+    order_id: Mapped[int] = mapped_column(Integer, ForeignKey("orders.id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(Integer, ForeignKey("products.id"), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     unit_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
 
@@ -167,7 +158,4 @@ class PipelineRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     def __repr__(self) -> str:
-        return (
-            f"<PipelineRun id={self.id} source={self.source!r} "
-            f"ingested={self.rows_ingested}>"
-        )
+        return f"<PipelineRun id={self.id} source={self.source!r} ingested={self.rows_ingested}>"

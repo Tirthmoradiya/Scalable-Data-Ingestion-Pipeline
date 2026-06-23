@@ -1,14 +1,15 @@
 """Pipeline run metrics tracker — timezone-aware."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 @dataclass
 class PipelineMetrics:
     source: str
-    started_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    started_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     finished_at: datetime | None = None
     rows_ingested: int = 0
     rows_failed: int = 0
@@ -22,7 +23,7 @@ class PipelineMetrics:
         self.errors.append(reason)
 
     def finish(self) -> None:
-        self.finished_at = datetime.now(tz=timezone.utc)
+        self.finished_at = datetime.now(tz=UTC)
 
     @property
     def error_log(self) -> str | None:
@@ -30,9 +31,7 @@ class PipelineMetrics:
 
     def summary(self) -> str:
         duration = (
-            (self.finished_at - self.started_at).total_seconds()
-            if self.finished_at
-            else None
+            (self.finished_at - self.started_at).total_seconds() if self.finished_at else None
         )
         if duration is not None:
             return (

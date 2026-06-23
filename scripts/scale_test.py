@@ -5,7 +5,7 @@ within a 4 GB RAM budget, across multiple row counts and chunk sizes.
 What it does
 ------------
 1. Generates datasets: 10K → 100K → 500K → 1M → 2M → 5M rows (stops if OOM risk)
-2. For each dataset × chunk_size configuration, runs the pipeline
+2. For each dataset and chunk_size configuration, runs the pipeline
 3. Monitors peak RAM via psutil background thread (samples every 50ms)
 4. Records: throughput (rows/s), peak RAM (MB), duration, rows loaded, failed
 5. Prints a rich summary table and saves JSON results to data/scale/results.json
@@ -16,6 +16,7 @@ Usage
     .venv/bin/python scripts/scale_test.py --max-rows 5000000 --ram-limit-gb 3.5
     .venv/bin/python scripts/scale_test.py --quick   # 10K / 100K / 500K only
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,13 +27,12 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 import psutil
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -55,12 +55,12 @@ RESULTS_FILE = SCALE_DATA_DIR / "results.json"
 CHUNK_SIZES_TO_TEST = [500, 1000, 5000]
 
 ROW_TIERS = [
-    ("10K",  10_000),
+    ("10K", 10_000),
     ("100K", 100_000),
     ("500K", 500_000),
-    ("1M",   1_000_000),
-    ("2M",   2_000_000),
-    ("5M",   5_000_000),
+    ("1M", 1_000_000),
+    ("2M", 2_000_000),
+    ("5M", 5_000_000),
 ]
 
 
@@ -120,11 +120,11 @@ class BenchResult:
     duration_sec: float
     rows_loaded: int
     rows_failed: int
-    throughput_rps: float       # rows per second through pipeline
+    throughput_rps: float  # rows per second through pipeline
     peak_ram_mb: float
-    delta_ram_mb: float         # RAM added by this run
+    delta_ram_mb: float  # RAM added by this run
     db_size_mb: float
-    error: Optional[str] = None
+    error: str | None = None
 
     def csv_row(self) -> dict:
         return asdict(self)
@@ -228,8 +228,7 @@ def print_result(r: BenchResult) -> None:
         f"RPS={r.throughput_rps:>9,.0f}  "
         f"RAM_peak={r.peak_ram_mb:>7.1f}MB  "
         f"ΔRAM={r.delta_ram_mb:>6.1f}MB  "
-        f"DB={r.db_size_mb:>6.1f}MB"
-        + (f"  [ERR: {r.error[:40]}]" if r.error else "")
+        f"DB={r.db_size_mb:>6.1f}MB" + (f"  [ERR: {r.error[:40]}]" if r.error else "")
     )
 
 
@@ -244,16 +243,20 @@ def print_summary(results: list[BenchResult]) -> None:
     biggest = max(good, key=lambda r: r.row_count)
 
     print("\n" + "─" * 110)
-    print(f"  SUMMARY")
+    print("  SUMMARY")
     print("─" * 110)
     print(f"  Total runs:           {len(results)}")
     print(f"  Successful runs:      {len(good)}")
     print(f"  Failed runs:          {len(results) - len(good)}")
     print()
-    print(f"  Best throughput:      {best_rps.throughput_rps:>12,.0f} rows/sec  "
-          f"({best_rps.label}, chunk={best_rps.chunk_size})")
-    print(f"  Most memory-eff.:     ΔRAM={best_mem.delta_ram_mb:>6.1f}MB  "
-          f"({best_mem.label}, chunk={best_mem.chunk_size})")
+    print(
+        f"  Best throughput:      {best_rps.throughput_rps:>12,.0f} rows/sec  "
+        f"({best_rps.label}, chunk={best_rps.chunk_size})"
+    )
+    print(
+        f"  Most memory-eff.:     ΔRAM={best_mem.delta_ram_mb:>6.1f}MB  "
+        f"({best_mem.label}, chunk={best_mem.chunk_size})"
+    )
     print(f"  Largest dataset run:  {biggest.row_count:>12,} rows  ({biggest.label})")
     print(f"  Peak RAM observed:    {max(r.peak_ram_mb for r in good):>7.1f} MB")
     print(f"  Max DB size:          {max(r.db_size_mb for r in good):>7.1f} MB")
@@ -284,17 +287,20 @@ def print_summary(results: list[BenchResult]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Pipeline scale test")
     parser.add_argument("--max-rows", type=int, default=2_000_000)
-    parser.add_argument("--ram-limit-gb", type=float, default=3.5,
-                        help="Stop generating new tiers if available RAM < this")
-    parser.add_argument("--quick", action="store_true",
-                        help="Only run 10K / 100K / 500K")
-    parser.add_argument("--chunk-sizes", default="500,1000,5000",
-                        help="Comma-separated chunk sizes to test")
+    parser.add_argument(
+        "--ram-limit-gb",
+        type=float,
+        default=3.5,
+        help="Stop generating new tiers if available RAM < this",
+    )
+    parser.add_argument("--quick", action="store_true", help="Only run 10K / 100K / 500K")
+    parser.add_argument(
+        "--chunk-sizes", default="500,1000,5000", help="Comma-separated chunk sizes to test"
+    )
     parser.add_argument("--batch-size", type=int, default=500)
     args = parser.parse_args()
 
     chunk_sizes = [int(x) for x in args.chunk_sizes.split(",")]
-    ram_limit_bytes = args.ram_limit_gb * 1e9
 
     SCALE_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -311,14 +317,18 @@ def main() -> None:
     generator_script = SCRIPT_DIR / "generate_dataset.py"
     python = str(PROJECT_DIR / ".venv" / "bin" / "python")
 
-    tiers = [(lbl, n) for lbl, n in ROW_TIERS
-             if n <= args.max_rows and (not args.quick or n <= 500_000)]
+    tiers = [
+        (lbl, n) for lbl, n in ROW_TIERS if n <= args.max_rows and (not args.quick or n <= 500_000)
+    ]
 
     for tier_label, row_count in tiers:
         # Safety check
         avail_now = psutil.virtual_memory().available / 1e9
         if avail_now < args.ram_limit_gb:
-            print(f"\n  ⚠ Available RAM dropped to {avail_now:.2f} GB < {args.ram_limit_gb} GB — stopping.")
+            print(
+                f"\n  ⚠ Available RAM dropped to {avail_now:.2f} GB < "
+                f"{args.ram_limit_gb} GB — stopping."
+            )
             break
 
         csv_path = SCALE_DATA_DIR / f"orders_{tier_label}.csv"
@@ -328,11 +338,18 @@ def main() -> None:
             print(f"\n▶ Generating {tier_label} rows ({row_count:,})…")
             t0 = time.perf_counter()
             result = subprocess.run(
-                [python, str(generator_script),
-                 "--rows", str(row_count),
-                 "--out", str(csv_path),
-                 "--type", "orders"],
-                capture_output=True, text=True
+                [
+                    python,
+                    str(generator_script),
+                    "--rows",
+                    str(row_count),
+                    "--out",
+                    str(csv_path),
+                    "--type",
+                    "orders",
+                ],
+                capture_output=True,
+                text=True,
             )
             elapsed = time.perf_counter() - t0
             size_mb = csv_path.stat().st_size / 1e6 if csv_path.exists() else 0
@@ -345,8 +362,10 @@ def main() -> None:
             print(f"\n▶ Using cached {tier_label} dataset ({size_mb:.0f} MB)")
 
         # Run benchmark for each chunk size
-        print(f"  {'Label':<10} {'Chunk':>8} {'File MB':>9} {'Duration':>10} "
-              f"{'Rows':>12} {'RPS':>11} {'Peak MB':>10} {'ΔRAM MB':>9} {'DB MB':>8}")
+        print(
+            f"  {'Label':<10} {'Chunk':>8} {'File MB':>9} {'Duration':>10} "
+            f"{'Rows':>12} {'RPS':>11} {'Peak MB':>10} {'ΔRAM MB':>9} {'DB MB':>8}"
+        )
         print("  " + "-" * 100)
 
         for chunk_size in chunk_sizes:
@@ -375,7 +394,7 @@ def main() -> None:
 
     # Save results as JSON
     results_data = {
-        "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+        "generated_at": datetime.now(tz=UTC).isoformat(),
         "system": {
             "total_ram_gb": round(psutil.virtual_memory().total / 1e9, 1),
             "cpu_count": psutil.cpu_count(logical=False),

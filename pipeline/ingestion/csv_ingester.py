@@ -1,4 +1,5 @@
 """CSV file ingester — streaming chunk support."""
+
 from __future__ import annotations
 
 import csv
@@ -86,4 +87,8 @@ class CSVIngester(BaseIngester):
                 log.debug("csv_chunk_final", path=str(self.file_path), rows=len(chunk))
                 yield chunk
 
-        log.info("csv_stream_complete", path=str(self.file_path), total_rows=total if chunk_size > 0 else None)
+        log.info(
+            "csv_stream_complete",
+            path=str(self.file_path),
+            total_rows=total if chunk_size > 0 else None,
+        )

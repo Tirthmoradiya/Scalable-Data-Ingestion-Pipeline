@@ -1,6 +1,7 @@
 """
 Abstract base ingester — defines the contract all concrete ingesters must fulfil.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

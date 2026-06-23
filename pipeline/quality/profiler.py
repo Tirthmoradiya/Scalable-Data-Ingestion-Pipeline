@@ -7,12 +7,13 @@ Checks performed after a pipeline run:
   3. Duplicate rate (unique count vs total)
   4. Value distribution summary for categorical fields
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import func, inspect, text
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from pipeline.utils.logger import get_logger
@@ -64,19 +65,19 @@ class TableProfile:
 
     def report(self) -> str:
         lines = [
-            f"\n{'='*60}",
+            f"\n{'=' * 60}",
             f"  Table: {self.table_name}",
             f"  DB rows:       {self.total_rows:,}",
             f"  Ingested rows: {self.ingested_rows:,}",
             f"  Reconciliation: {'✓ OK' if self.reconciliation_ok else '⚠ MISMATCH'}",
-            f"{'='*60}",
+            f"{'=' * 60}",
             f"  {'Column':<25} {'Nulls':>8} {'Null%':>8} {'Distinct':>10}",
-            f"  {'-'*55}",
+            f"  {'-' * 55}",
         ]
         for col in self.columns:
             flag = " ⚠" if col.null_rate > 0.5 else ""
             lines.append(
-                f"  {col.name:<25} {col.null_count:>8,} {col.null_rate*100:>7.1f}% "
+                f"  {col.name:<25} {col.null_count:>8,} {col.null_rate * 100:>7.1f}% "
                 f"{col.distinct_count:>10,}{flag}"
             )
         return "\n".join(lines)
@@ -113,9 +114,7 @@ class DataProfiler:
         columns:
             Columns to profile. If None, introspect from DB metadata.
         """
-        total_rows = self._session.execute(
-            text(f"SELECT COUNT(*) FROM {table_name}")  # noqa: S608
-        ).scalar_one()
+        total_rows = self._session.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar_one()
 
         if columns is None:
             # Introspect column names from SQLAlchemy inspector
@@ -126,10 +125,10 @@ class DataProfiler:
         col_profiles: list[ColumnProfile] = []
         for col in columns:
             null_count = self._session.execute(
-                text(f"SELECT COUNT(*) FROM {table_name} WHERE {col} IS NULL")  # noqa: S608
+                text(f"SELECT COUNT(*) FROM {table_name} WHERE {col} IS NULL")
             ).scalar_one()
             distinct_count = self._session.execute(
-                text(f"SELECT COUNT(DISTINCT {col}) FROM {table_name}")  # noqa: S608
+                text(f"SELECT COUNT(DISTINCT {col}) FROM {table_name}")
             ).scalar_one()
             col_profiles.append(
                 ColumnProfile(

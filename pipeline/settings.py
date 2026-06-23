@@ -11,17 +11,18 @@ Usage
     from pipeline.settings import settings
     print(settings.db.url)
 """
+
 from __future__ import annotations
 
 import enum
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Environment(str, enum.Enum):
+class Environment(enum.StrEnum):
     development = "development"
     staging = "staging"
     production = "production"
@@ -45,18 +46,13 @@ class DatabaseSettings(BaseSettings):
     def url(self) -> str:
         pwd = self.password.get_secret_value()
         return (
-            f"mysql+pymysql://{self.user}:{pwd}"
-            f"@{self.host}:{self.port}/{self.name}"
-            f"?charset=utf8mb4"
+            f"mysql+pymysql://{self.user}:{pwd}@{self.host}:{self.port}/{self.name}?charset=utf8mb4"
         )
 
     @property
     def url_safe(self) -> str:
         """URL with password masked — safe for logging."""
-        return (
-            f"mysql+pymysql://{self.user}:***"
-            f"@{self.host}:{self.port}/{self.name}"
-        )
+        return f"mysql+pymysql://{self.user}:***@{self.host}:{self.port}/{self.name}"
 
 
 class PipelineSettings(BaseSettings):
@@ -84,7 +80,7 @@ class ObservabilitySettings(BaseSettings):
 class APISettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="API_", extra="ignore")
 
-    host: str = "0.0.0.0"  # noqa: S104
+    host: str = "0.0.0.0"
     port: int = Field(default=8000, ge=1024, le=65535)
     reload: bool = False
     cors_origins: list[str] = Field(default=["*"])

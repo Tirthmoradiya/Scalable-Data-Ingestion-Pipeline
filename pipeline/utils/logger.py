@@ -10,6 +10,7 @@ Usage
     log = get_logger(__name__)
     log.info("rows_loaded", count=500, source="orders.csv")
 """
+
 from __future__ import annotations
 
 import logging

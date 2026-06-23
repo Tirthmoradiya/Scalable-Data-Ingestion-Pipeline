@@ -7,13 +7,12 @@ Runs before Pydantic validation:
   3. Truncate oversized string fields
   4. Normalize encoding issues (replace mojibake)
 """
+
 from __future__ import annotations
 
 import unicodedata
 
-NULL_SENTINELS = frozenset(
-    {"", "null", "none", "n/a", "na", "nil", "undefined", "-", "--"}
-)
+NULL_SENTINELS = frozenset({"", "null", "none", "n/a", "na", "nil", "undefined", "-", "--"})
 
 MAX_LENGTHS: dict[str, int] = {
     "name": 256,
@@ -73,6 +72,4 @@ class DataCleaner:
             return value
         value = unicodedata.normalize("NFC", value)
         # Drop control characters (except tab/newline which may appear in text)
-        return "".join(
-            ch for ch in value if unicodedata.category(ch)[0] != "C" or ch in "\t\n"
-        )
+        return "".join(ch for ch in value if unicodedata.category(ch)[0] != "C" or ch in "\t\n")

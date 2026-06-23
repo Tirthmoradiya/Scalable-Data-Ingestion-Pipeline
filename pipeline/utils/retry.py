@@ -20,13 +20,12 @@ Usage
     dlq.write(record={"email": "bad@x.com"}, reason="ValidationError: ...")
     dlq.close()
 """
+
 from __future__ import annotations
 
 import json
-import os
-import time
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
 from typing import Any, TypeVar
@@ -60,6 +59,7 @@ def with_retry(
     exceptions:
         Tuple of exception types to catch and retry on.
     """
+
     def decorator(fn: F) -> F:
         retry_strategy = tenacity.retry(
             stop=tenacity.stop_after_attempt(max_attempts),
@@ -99,7 +99,7 @@ class DeadLetterWriter:
     def write(self, record: dict, reason: str) -> None:
         """Append a failed record with its failure reason."""
         entry = {
-            "ts": datetime.now(tz=timezone.utc).isoformat(),
+            "ts": datetime.now(tz=UTC).isoformat(),
             "run_id": self._run_id,
             "reason": reason,
             "record": record,
@@ -118,7 +118,7 @@ class DeadLetterWriter:
                 total_records=self._count,
             )
 
-    def __enter__(self) -> "DeadLetterWriter":
+    def __enter__(self) -> DeadLetterWriter:
         return self
 
     def __exit__(self, *_: Any) -> None:

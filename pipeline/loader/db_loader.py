@@ -8,9 +8,10 @@ name for categories).
 For tables without natural unique keys (orders, order_items, pipeline_runs),
 plain inserts are used since duplicates are not expected at the ORM level.
 """
+
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -107,7 +108,7 @@ class DBLoader:
             rows_failed=metrics.rows_failed,
             error_log=metrics.error_log,
             started_at=metrics.started_at,
-            finished_at=metrics.finished_at or datetime.utcnow(),
+            finished_at=metrics.finished_at or datetime.now(UTC),
         )
         self._session.add(run)
         self._session.commit()

@@ -113,7 +113,7 @@ class TestAPIIngester:
         mock_resp.json.return_value = {"results": [{"id": 1}], "next": None}
         mock_resp.raise_for_status.return_value = None
 
-        with patch("pipeline.ingestion.api_ingester.requests.get", return_value=mock_resp):
+        with patch("httpx.Client.get", return_value=mock_resp):
             records = APIIngester("https://api.example.com/data").ingest()
 
         assert len(records) == 1
@@ -131,7 +131,7 @@ class TestAPIIngester:
         page2.raise_for_status.return_value = None
 
         with patch(
-            "pipeline.ingestion.api_ingester.requests.get",
+            "httpx.Client.get",
             side_effect=[page1, page2],
         ):
             records = APIIngester("https://api.example.com/data").ingest()
@@ -143,7 +143,7 @@ class TestAPIIngester:
         mock_resp.json.return_value = [{"id": 1}, {"id": 2}]
         mock_resp.raise_for_status.return_value = None
 
-        with patch("pipeline.ingestion.api_ingester.requests.get", return_value=mock_resp):
+        with patch("httpx.Client.get", return_value=mock_resp):
             records = APIIngester(
                 "https://api.example.com/data", data_key=None
             ).ingest()

@@ -11,12 +11,11 @@ Commands
   api      — Start the FastAPI monitoring server
   profile  — Run a data quality profile on a DB table
 """
+
 from __future__ import annotations
 
-import sys
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich import box
@@ -34,7 +33,7 @@ from rich.table import Table
 from rich.text import Text
 
 from pipeline.settings import get_settings
-from pipeline.utils.logger import configure_logging, get_logger
+from pipeline.utils.logger import configure_logging
 
 app = typer.Typer(
     name="pipeline",
@@ -49,7 +48,7 @@ console = Console()
 settings = get_settings()
 
 
-class SourceType(str, Enum):
+class SourceType(StrEnum):
     csv = "csv"
     json = "json"
     ndjson = "ndjson"
@@ -70,7 +69,7 @@ def _print_banner() -> None:
 
 
 def _get_db_url(db_url: str | None) -> str:
-    if db_url == "sqlite" or db_url is None and settings.is_development:
+    if db_url == "sqlite" or (db_url is None and settings.is_development):
         return "sqlite:///pipeline.db"
     return db_url or settings.db.url
 
@@ -81,13 +80,17 @@ def _get_db_url(db_url: str | None) -> str:
 @app.command()
 def ingest(
     source: SourceType = typer.Option(..., "--source", "-s", help="Ingestion source type"),
-    file: Optional[Path] = typer.Option(None, "--file", "-f", help="Path to input file"),
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="REST API URL"),
-    entity_type: str = typer.Option("generic", "--entity", "-e", help="Entity type (customers/products/orders/categories)"),
-    db_url: Optional[str] = typer.Option(None, "--db-url", help="DB URL (use 'sqlite' for local)"),
+    file: Path | None = typer.Option(None, "--file", "-f", help="Path to input file"),
+    url: str | None = typer.Option(None, "--url", "-u", help="REST API URL"),
+    entity_type: str = typer.Option(
+        "generic", "--entity", "-e", help="Entity type (customers/products/orders/categories)"
+    ),
+    db_url: str | None = typer.Option(None, "--db-url", help="DB URL (use 'sqlite' for local)"),
     chunk_size: int = typer.Option(1000, "--chunk-size", help="Rows per processing chunk"),
     max_workers: int = typer.Option(4, "--workers", help="Parallel worker threads"),
-    profile: bool = typer.Option(False, "--profile", help="Run data quality profile after ingestion"),
+    profile: bool = typer.Option(
+        False, "--profile", help="Run data quality profile after ingestion"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """[bold green]Ingest[/bold green] data from a file or API into the database."""
@@ -96,7 +99,6 @@ def ingest(
         log_level="DEBUG" if verbose else settings.obs.log_level,
         log_format=settings.obs.log_format,
     )
-    log = get_logger("cli.ingest")
 
     from pipeline.ingestion.csv_ingester import CSVIngester
     from pipeline.ingestion.json_ingester import JSONIngester
@@ -111,7 +113,9 @@ def ingest(
         raise typer.Exit(1)
 
     resolved_db = _get_db_url(db_url)
-    console.print(f"[dim]DB:[/dim] {resolved_db.split('@')[-1] if '@' in resolved_db else resolved_db}")
+    console.print(
+        f"[dim]DB:[/dim] {resolved_db.split('@')[-1] if '@' in resolved_db else resolved_db}"
+    )
     console.print(f"[dim]Source:[/dim] {file or url}  [dim]Entity:[/dim] {entity_type}")
     console.print()
 
@@ -122,6 +126,7 @@ def ingest(
         ingester = JSONIngester(file, ndjson=(source == SourceType.ndjson))
     else:
         from pipeline.ingestion.api_ingester import APIIngester
+
         ingester = APIIngester(url)
 
     runner = PipelineRunner(db_url=resolved_db)
@@ -167,6 +172,7 @@ def ingest(
     if profile:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import Session
+
         from pipeline.quality.profiler import DataProfiler
 
         eng = create_engine(resolved_db)
@@ -193,11 +199,12 @@ def ingest(
 @app.command()
 def status(
     limit: int = typer.Option(10, "--limit", "-n", help="Number of recent runs to show"),
-    db_url: Optional[str] = typer.Option(None, "--db-url"),
+    db_url: str | None = typer.Option(None, "--db-url"),
 ) -> None:
     """[bold blue]Show[/bold blue] recent pipeline runs."""
     from sqlalchemy import create_engine, select
     from sqlalchemy.orm import Session
+
     from pipeline.models import PipelineRun
 
     resolved_db = _get_db_url(db_url)
@@ -242,7 +249,7 @@ def status(
 # ---------------------------------------------------------------------------
 @app.command()
 def migrate(
-    db_url: Optional[str] = typer.Option(None, "--db-url"),
+    db_url: str | None = typer.Option(None, "--db-url"),
     revision: str = typer.Option("head", "--revision", help="Alembic revision target"),
 ) -> None:
     """[bold yellow]Run[/bold yellow] Alembic DB migrations."""
@@ -258,7 +265,7 @@ def migrate(
         console.print(f"[green]✓[/green] Migrations applied to [bold]{revision}[/bold]")
     except Exception as exc:
         console.print(f"[red]✗ Migration failed:[/red] {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +279,7 @@ def api(
 ) -> None:
     """[bold magenta]Start[/bold magenta] the FastAPI monitoring server."""
     import uvicorn
+
     console.print(f"[magenta]Starting API server on http://{host}:{port}[/magenta]")
     uvicorn.run("pipeline.api.app:app", host=host, port=port, reload=reload)
 
@@ -282,11 +290,11 @@ def api(
 @schedule_app.command("add")
 def schedule_add(
     source: SourceType = typer.Option(..., "--source", "-s"),
-    file: Optional[Path] = typer.Option(None, "--file", "-f"),
+    file: Path | None = typer.Option(None, "--file", "-f"),
     entity_type: str = typer.Option("generic", "--entity", "-e"),
-    cron: Optional[str] = typer.Option(None, "--cron", help="Cron expression e.g. '0 * * * *'"),
-    interval_minutes: Optional[int] = typer.Option(None, "--every", help="Interval in minutes"),
-    db_url: Optional[str] = typer.Option(None, "--db-url"),
+    cron: str | None = typer.Option(None, "--cron", help="Cron expression e.g. '0 * * * *'"),
+    interval_minutes: int | None = typer.Option(None, "--every", help="Interval in minutes"),
+    db_url: str | None = typer.Option(None, "--db-url"),
 ) -> None:
     """[bold]Add[/bold] a scheduled pipeline job."""
     from pipeline.scheduler import PipelineScheduler
@@ -300,20 +308,27 @@ def schedule_add(
 
     if cron:
         job_id = sched.add_cron_job(
-            source=source.value, entity_type=entity_type,
-            cron=cron, file_path=str(file) if file else None,
+            source=source.value,
+            entity_type=entity_type,
+            cron=cron,
+            file_path=str(file) if file else None,
         )
         console.print(f"[green]✓[/green] Cron job added: [bold]{job_id[:8]}[/bold] ({cron})")
     else:
         job_id = sched.add_interval_job(
-            source=source.value, entity_type=entity_type,
-            minutes=interval_minutes, file_path=str(file) if file else None,
+            source=source.value,
+            entity_type=entity_type,
+            minutes=interval_minutes,
+            file_path=str(file) if file else None,
         )
-        console.print(f"[green]✓[/green] Interval job added: [bold]{job_id[:8]}[/bold] (every {interval_minutes}m)")
+        console.print(
+            f"[green]✓[/green] Interval job added: [bold]{job_id[:8]}[/bold] "
+            f"(every {interval_minutes}m)"
+        )
 
 
 @schedule_app.command("list")
-def schedule_list(db_url: Optional[str] = typer.Option(None, "--db-url")) -> None:
+def schedule_list(db_url: str | None = typer.Option(None, "--db-url")) -> None:
     """[bold]List[/bold] all scheduled jobs."""
     from pipeline.scheduler import PipelineScheduler
 
@@ -343,11 +358,12 @@ def schedule_list(db_url: Optional[str] = typer.Option(None, "--db-url")) -> Non
 def profile_table(
     table: str = typer.Argument(..., help="DB table name to profile"),
     ingested: int = typer.Option(0, "--ingested", help="Ingested row count for reconciliation"),
-    db_url: Optional[str] = typer.Option(None, "--db-url"),
+    db_url: str | None = typer.Option(None, "--db-url"),
 ) -> None:
     """[bold]Profile[/bold] a table's data quality."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session as SASession
+
     from pipeline.quality.profiler import DataProfiler
 
     eng = create_engine(_get_db_url(db_url))

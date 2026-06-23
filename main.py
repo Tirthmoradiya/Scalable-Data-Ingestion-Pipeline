@@ -8,19 +8,19 @@ Usage examples
   python main.py --source ndjson --file data/sample_events.ndjson
   python main.py --source api  --url https://api.example.com/orders
 """
+
 from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from pipeline.config import Config
+from pipeline.ingestion.api_ingester import APIIngester
 from pipeline.ingestion.csv_ingester import CSVIngester
 from pipeline.ingestion.json_ingester import JSONIngester
-from pipeline.ingestion.api_ingester import APIIngester
 from pipeline.loader.db_loader import DBLoader
 from pipeline.models import Base
 from pipeline.transformations.transformer import DataTransformer

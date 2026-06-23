@@ -20,6 +20,7 @@ Usage
     for chunk in ingester.ingest_chunks():
         process(chunk)
 """
+
 from __future__ import annotations
 
 import time
@@ -102,7 +103,7 @@ class APIIngester(BaseIngester):
     # ------------------------------------------------------------------
     # Streaming chunks — one page per chunk
     # ------------------------------------------------------------------
-    def ingest_chunks(self, chunk_size: int = 0) -> Generator[list[dict[str, Any]], None, None]:  # noqa: ARG002
+    def ingest_chunks(self, chunk_size: int = 0) -> Generator[list[dict[str, Any]], None, None]:
         """
         Yield one page of records at a time.
 
@@ -119,9 +120,7 @@ class APIIngester(BaseIngester):
 
                 if self.data_key and isinstance(payload, dict):
                     page_records: list[Any] = payload.get(self.data_key, [])
-                    next_url: str | None = (
-                        payload.get(self.next_key) if self.next_key else None
-                    )
+                    next_url: str | None = payload.get(self.next_key) if self.next_key else None
                 elif isinstance(payload, list):
                     page_records = payload
                     next_url = None

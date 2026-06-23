@@ -23,16 +23,15 @@ Usage
     )
     print(result.summary())
 """
+
 from __future__ import annotations
 
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from pipeline.cleaning.cleaner import DataCleaner
@@ -43,7 +42,7 @@ from pipeline.settings import Settings, get_settings
 from pipeline.transformations.transformer import DataTransformer
 from pipeline.utils.logger import bind_run_context, clear_run_context, get_logger
 from pipeline.utils.metrics import PipelineMetrics
-from pipeline.utils.retry import DeadLetterWriter, with_retry
+from pipeline.utils.retry import DeadLetterWriter
 from pipeline.utils.telemetry import BATCH_DURATION, ROWS_FAILED, ROWS_INGESTED, RunTimer
 
 log = get_logger(__name__)
@@ -57,15 +56,13 @@ class RunResult:
     rows_failed: int = 0
     chunks_processed: int = 0
     dead_letter_path: str | None = None
-    started_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    started_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     finished_at: datetime | None = None
     errors: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
         duration = (
-            (self.finished_at - self.started_at).total_seconds()
-            if self.finished_at
-            else None
+            (self.finished_at - self.started_at).total_seconds() if self.finished_at else None
         )
         return (
             f"RunResult(id={self.run_id[:8]} source={self.source!r} "
@@ -99,11 +96,13 @@ class PipelineRunner:
         is_sqlite = resolved_url.startswith("sqlite")
         engine_kwargs: dict = {"echo": self._settings.db.echo}
         if not is_sqlite:
-            engine_kwargs.update({
-                "pool_size": self._settings.db.pool_size,
-                "max_overflow": self._settings.db.max_overflow,
-                "pool_recycle": self._settings.db.pool_recycle,
-            })
+            engine_kwargs.update(
+                {
+                    "pool_size": self._settings.db.pool_size,
+                    "max_overflow": self._settings.db.max_overflow,
+                    "pool_recycle": self._settings.db.pool_recycle,
+                }
+            )
         self._engine = create_engine(resolved_url, **engine_kwargs)
         Base.metadata.create_all(self._engine)
 
@@ -137,7 +136,9 @@ class PipelineRunner:
         max_workers = max_workers or self._settings.pipeline.max_workers
 
         bind_run_context(run_id=run_id, source=source)
-        log.info("run_started", entity_type=entity_type, chunk_size=chunk_size, max_workers=max_workers)
+        log.info(
+            "run_started", entity_type=entity_type, chunk_size=chunk_size, max_workers=max_workers
+        )
 
         result = RunResult(run_id=run_id, source=source)
         metrics = PipelineMetrics(source=source)
@@ -164,7 +165,7 @@ class PipelineRunner:
                     result.errors.append(str(exc))
                     raise
                 finally:
-                    result.finished_at = datetime.now(tz=timezone.utc)
+                    result.finished_at = datetime.now(tz=UTC)
                     metrics.finish()
                     result.rows_ingested = metrics.rows_ingested
                     result.rows_failed = metrics.rows_failed
@@ -224,54 +225,54 @@ class PipelineRunner:
         dlq: DeadLetterWriter,
     ) -> tuple[int, int]:
         """Process a single chunk in a worker thread. Returns (ingested, failed)."""
-        with BATCH_DURATION.labels(source=entity_type).time():
-            with Session(self._engine) as session:
-                chunk_metrics = PipelineMetrics(source=f"chunk-{chunk_index}")
-                transformer = DataTransformer(session, chunk_metrics)
-                loader = DBLoader(session, batch_size=self._settings.pipeline.batch_size)
+        with BATCH_DURATION.labels(source=entity_type).time(), Session(self._engine) as session:
+            chunk_metrics = PipelineMetrics(source=f"chunk-{chunk_index}")
+            transformer = DataTransformer(session, chunk_metrics)
+            loader = DBLoader(session, batch_size=self._settings.pipeline.batch_size)
 
-                cleaned = DataCleaner.clean_records(chunk)
+            cleaned = DataCleaner.clean_records(chunk)
 
-                # Route by entity type
-                if entity_type == "customers":
-                    objects = transformer.transform_customers(cleaned)
-                    loader.load_customers(objects)
-                elif entity_type == "products":
-                    cat_map = loader.get_category_map()
-                    objects = transformer.transform_products(cleaned, cat_map)
-                    loader.load_products(objects)
-                elif entity_type == "orders":
-                    customer_map = loader.get_customer_map()
-                    objects = transformer.transform_orders(cleaned, customer_map)
-                    loader.load_orders(objects)
-                elif entity_type == "categories":
-                    objects = transformer.transform_categories(cleaned)
-                    loader.load_categories(objects)
-                else:
-                    log.warning("unknown_entity_type", entity_type=entity_type)
-                    objects = []
+            # Route by entity type
+            if entity_type == "customers":
+                objects = transformer.transform_customers(cleaned)
+                loader.load_customers(objects)
+            elif entity_type == "products":
+                cat_map = loader.get_category_map()
+                objects = transformer.transform_products(cleaned, cat_map)
+                loader.load_products(objects)
+            elif entity_type == "orders":
+                customer_map = loader.get_customer_map()
+                objects = transformer.transform_orders(cleaned, customer_map)
+                loader.load_orders(objects)
+            elif entity_type == "categories":
+                objects = transformer.transform_categories(cleaned)
+                loader.load_categories(objects)
+            else:
+                log.warning("unknown_entity_type", entity_type=entity_type)
+                objects = []
 
-                self._flush_with_retry(session)
+            self._flush_with_retry(session)
 
-                # Write chunk failures to dead-letter
-                for err in chunk_metrics.errors:
-                    dlq.write(record={}, reason=err)
+            # Write chunk failures to dead-letter
+            for err in chunk_metrics.errors:
+                dlq.write(record={}, reason=err)
 
-                # Merge chunk metrics into global metrics
-                metrics.rows_ingested += chunk_metrics.rows_ingested
-                metrics.rows_failed += chunk_metrics.rows_failed
-                metrics.errors.extend(chunk_metrics.errors)
+            # Merge chunk metrics into global metrics
+            metrics.rows_ingested += chunk_metrics.rows_ingested
+            metrics.rows_failed += chunk_metrics.rows_failed
+            metrics.errors.extend(chunk_metrics.errors)
 
-                log.info(
-                    "chunk_done",
-                    chunk_index=chunk_index,
-                    ingested=chunk_metrics.rows_ingested,
-                    failed=chunk_metrics.rows_failed,
-                )
-                return chunk_metrics.rows_ingested, chunk_metrics.rows_failed
+            log.info(
+                "chunk_done",
+                chunk_index=chunk_index,
+                ingested=chunk_metrics.rows_ingested,
+                failed=chunk_metrics.rows_failed,
+            )
+            return chunk_metrics.rows_ingested, chunk_metrics.rows_failed
 
     def _flush_with_retry(self, session: Session) -> None:
         import time
+
         attempts = self._settings.pipeline.retry_max_attempts
         backoff = self._settings.pipeline.retry_backoff_factor
         last_exc: Exception | None = None
@@ -282,7 +283,7 @@ class PipelineRunner:
             except Exception as exc:
                 last_exc = exc
                 if attempt < attempts - 1:
-                    time.sleep(backoff * (2 ** attempt))
+                    time.sleep(backoff * (2**attempt))
                     log.warning("flush_retry", attempt=attempt + 1, error=str(exc))
         raise last_exc  # type: ignore[misc]
 

@@ -19,6 +19,7 @@ Start the metrics HTTP server:
     from pipeline.utils.telemetry import start_metrics_server
     start_metrics_server(port=9090)
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -107,7 +108,7 @@ def configure_tracing(
     enabled:
         If False, installs a no-op tracer (useful in tests / dev).
     """
-    global _tracer  # noqa: PLW0603
+    global _tracer
 
     if _tracer is not None:
         return  # already initialised
@@ -142,7 +143,7 @@ def configure_tracing(
 
 
 def _get_tracer() -> Any:
-    global _tracer  # noqa: PLW0603
+    global _tracer
     if _tracer is None:
         # Lazy no-op initialisation so callers never need to check for None
         from opentelemetry.sdk.trace import TracerProvider
@@ -188,7 +189,7 @@ class RunTimer:
         self._timer = RUN_DURATION.labels(source=source, status="success").time()
         ACTIVE_RUNS.inc()
 
-    def __enter__(self) -> "RunTimer":
+    def __enter__(self) -> RunTimer:
         self._timer.__enter__()
         return self
 

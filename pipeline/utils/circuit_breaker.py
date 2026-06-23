@@ -22,6 +22,7 @@ Usage
     with cb.protected():
         response = httpx.get(url)
 """
+
 from __future__ import annotations
 
 import functools

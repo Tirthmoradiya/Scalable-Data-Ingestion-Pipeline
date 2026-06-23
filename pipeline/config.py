@@ -1,7 +1,9 @@
 """
 Pipeline configuration — reads from environment variables (.env file).
 """
+
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()

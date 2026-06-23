@@ -16,6 +16,7 @@ Usage
     for chunk in ingester.ingest_chunks(chunk_size=5000):
         process(chunk)
 """
+
 from __future__ import annotations
 
 from collections.abc import Generator
@@ -56,7 +57,9 @@ class ParquetIngester(BaseIngester):
         log.info("parquet_ingested", path=str(self.file_path), rows=len(records))
         return records
 
-    def ingest_chunks(self, chunk_size: int = 10_000) -> Generator[list[dict[str, Any]], None, None]:
+    def ingest_chunks(
+        self, chunk_size: int = 10_000
+    ) -> Generator[list[dict[str, Any]], None, None]:
         """
         Yield successive chunks of rows.
 
@@ -67,9 +70,7 @@ class ParquetIngester(BaseIngester):
         try:
             import pyarrow.parquet as pq  # type: ignore[import]
         except ImportError as exc:
-            raise ImportError(
-                "ParquetIngester requires pyarrow: pip install pyarrow"
-            ) from exc
+            raise ImportError("ParquetIngester requires pyarrow: pip install pyarrow") from exc
 
         if not self.file_path.exists():
             raise FileNotFoundError(f"Parquet file not found: {self.file_path}")

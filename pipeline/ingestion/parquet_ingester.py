@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pipeline.ingestion.base_ingester import BaseIngester
 from pipeline.utils.logger import get_logger
@@ -68,14 +68,15 @@ class ParquetIngester(BaseIngester):
         Requires ``pyarrow``.
         """
         try:
-            import pyarrow.parquet as pq  # type: ignore[import]
+            import pyarrow.parquet as pq
         except ImportError as exc:
             raise ImportError("ParquetIngester requires pyarrow: pip install pyarrow") from exc
 
         if not self.file_path.exists():
             raise FileNotFoundError(f"Parquet file not found: {self.file_path}")
 
-        pf = pq.ParquetFile(self.file_path)
+        pq_any: Any = pq
+        pf: Any = pq_any.ParquetFile(self.file_path)
         total_rows = pf.metadata.num_rows
         log.info(
             "parquet_open",
@@ -92,9 +93,10 @@ class ParquetIngester(BaseIngester):
 
         batch_size = max(chunk_size, 1)
         for batch in pf.iter_batches(batch_size=batch_size, columns=self.columns):
-            import pyarrow as pa  # type: ignore[import]
+            import pyarrow as pa
 
-            records = pa.Table.from_batches([batch]).to_pylist()
+            pa_any: Any = pa
+            records = pa_any.Table.from_batches([batch]).to_pylist()
             if records:
                 log.debug("parquet_chunk", rows=len(records))
                 yield records
@@ -102,4 +104,4 @@ class ParquetIngester(BaseIngester):
 
 def _table_to_records(table: Any) -> list[dict[str, Any]]:
     """Convert a PyArrow Table to a list of dicts."""
-    return table.to_pylist()
+    return cast(list[dict[str, Any]], table.to_pylist())

@@ -30,6 +30,7 @@ import uuid
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -94,7 +95,7 @@ class PipelineRunner:
         self._settings = settings or get_settings()
         resolved_url = db_url or self._settings.db.url
         is_sqlite = resolved_url.startswith("sqlite")
-        engine_kwargs: dict = {"echo": self._settings.db.echo}
+        engine_kwargs: dict[str, Any] = {"echo": self._settings.db.echo}
         if not is_sqlite:
             engine_kwargs.update(
                 {
@@ -189,7 +190,7 @@ class PipelineRunner:
         dlq: DeadLetterWriter,
     ) -> None:
         """Fan-out chunks to a ThreadPoolExecutor."""
-        futures: list[Future] = []
+        futures: list[Future[Any]] = []
 
         # Determine if ingester supports streaming chunks
         if hasattr(ingester, "ingest_chunks"):
@@ -218,7 +219,7 @@ class PipelineRunner:
 
     def _process_chunk(
         self,
-        chunk: list[dict],
+        chunk: list[dict[str, Any]],
         chunk_index: int,
         entity_type: str,
         metrics: PipelineMetrics,
@@ -232,6 +233,7 @@ class PipelineRunner:
 
             cleaned = DataCleaner.clean_records(chunk)
 
+            objects: list[Any] = []
             # Route by entity type
             if entity_type == "customers":
                 objects = transformer.transform_customers(cleaned)
@@ -249,7 +251,6 @@ class PipelineRunner:
                 loader.load_categories(objects)
             else:
                 log.warning("unknown_entity_type", entity_type=entity_type)
-                objects = []
 
             self._flush_with_retry(session)
 
@@ -285,7 +286,7 @@ class PipelineRunner:
                 if attempt < attempts - 1:
                     time.sleep(backoff * (2**attempt))
                     log.warning("flush_retry", attempt=attempt + 1, error=str(exc))
-        raise last_exc  # type: ignore[misc]
+        raise last_exc
 
     def _save_run(self, metrics: PipelineMetrics) -> None:
         try:

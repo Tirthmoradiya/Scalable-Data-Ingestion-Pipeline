@@ -11,6 +11,7 @@ Runs before Pydantic validation:
 from __future__ import annotations
 
 import unicodedata
+from typing import Any
 
 NULL_SENTINELS = frozenset({"", "null", "none", "n/a", "na", "nil", "undefined", "-", "--"})
 
@@ -28,9 +29,9 @@ class DataCleaner:
     """Stateless cleaning utility — all methods are class-level."""
 
     @classmethod
-    def clean_record(cls, record: dict) -> dict:
+    def clean_record(cls, record: dict[str, Any]) -> dict[str, Any]:
         """Return a new cleaned dict; input is not mutated."""
-        cleaned: dict = {}
+        cleaned: dict[str, Any] = {}
         for key, value in record.items():
             value = cls._fix_encoding(value)
             value = cls._strip(value)
@@ -40,7 +41,7 @@ class DataCleaner:
         return cleaned
 
     @classmethod
-    def clean_records(cls, records: list[dict]) -> list[dict]:
+    def clean_records(cls, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [cls.clean_record(r) for r in records]
 
     # ------------------------------------------------------------------

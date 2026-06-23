@@ -5,6 +5,7 @@ Abstract base ingester — defines the contract all concrete ingesters must fulf
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class BaseIngester(ABC):
@@ -15,7 +16,7 @@ class BaseIngester(ABC):
     """
 
     @abstractmethod
-    def ingest(self) -> list[dict]:
+    def ingest(self) -> list[dict[str, Any]]:
         """Read raw records from the source and return them as plain dicts."""
         ...
 

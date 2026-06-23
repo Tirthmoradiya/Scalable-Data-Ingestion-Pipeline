@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 from pipeline.ingestion.base_ingester import BaseIngester
 from pipeline.utils.logger import get_logger
@@ -39,15 +40,15 @@ class CSVIngester(BaseIngester):
         self.encoding = encoding
         self.delimiter = delimiter
 
-    def ingest(self) -> list[dict]:
+    def ingest(self) -> list[dict[str, Any]]:
         """Load all rows into memory and return as a flat list."""
-        records: list[dict] = []
+        records: list[dict[str, Any]] = []
         for chunk in self.ingest_chunks(chunk_size=0):
             records.extend(chunk)
         log.info("csv_ingested", path=str(self.file_path), rows=len(records))
         return records
 
-    def ingest_chunks(self, chunk_size: int = 1000) -> Generator[list[dict], None, None]:
+    def ingest_chunks(self, chunk_size: int = 1000) -> Generator[list[dict[str, Any]], None, None]:
         """
         Yield successive chunks of rows.
 
@@ -67,7 +68,7 @@ class CSVIngester(BaseIngester):
                 yield rows
                 return
 
-            chunk: list[dict] = []
+            chunk: list[dict[str, Any]] = []
             total = 0
             for row in reader:
                 chunk.append(dict(row))

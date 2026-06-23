@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 from pipeline.ingestion.base_ingester import BaseIngester
 from pipeline.utils.logger import get_logger
@@ -42,9 +43,9 @@ class JSONIngester(BaseIngester):
     # ------------------------------------------------------------------
     # Full load
     # ------------------------------------------------------------------
-    def ingest(self) -> list[dict]:
+    def ingest(self) -> list[dict[str, Any]]:
         """Return all records as a list."""
-        records: list[dict] = []
+        records: list[dict[str, Any]] = []
         for chunk in self.ingest_chunks():
             records.extend(chunk)
         log.info("json_ingested", path=str(self.file_path), records=len(records))
@@ -53,7 +54,7 @@ class JSONIngester(BaseIngester):
     # ------------------------------------------------------------------
     # Streaming
     # ------------------------------------------------------------------
-    def ingest_chunks(self, chunk_size: int = 1000) -> Generator[list[dict], None, None]:
+    def ingest_chunks(self, chunk_size: int = 1000) -> Generator[list[dict[str, Any]], None, None]:
         """
         Yield chunks of records.
 
@@ -68,8 +69,8 @@ class JSONIngester(BaseIngester):
         else:
             yield from self._stream_json_array(chunk_size)
 
-    def _stream_ndjson(self, chunk_size: int) -> Generator[list[dict], None, None]:
-        chunk: list[dict] = []
+    def _stream_ndjson(self, chunk_size: int) -> Generator[list[dict[str, Any]], None, None]:
+        chunk: list[dict[str, Any]] = []
         with self.file_path.open(encoding=self.encoding) as fh:
             for lineno, line in enumerate(fh, start=1):
                 line = line.strip()
@@ -90,7 +91,7 @@ class JSONIngester(BaseIngester):
         if chunk:
             yield chunk
 
-    def _stream_json_array(self, chunk_size: int) -> Generator[list[dict], None, None]:
+    def _stream_json_array(self, chunk_size: int) -> Generator[list[dict[str, Any]], None, None]:
         with self.file_path.open(encoding=self.encoding) as fh:
             data = json.load(fh)
 

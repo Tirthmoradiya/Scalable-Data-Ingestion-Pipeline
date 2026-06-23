@@ -12,6 +12,7 @@ plain inserts are used since duplicates are not expected at the ORM level.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -50,7 +51,7 @@ class DBLoader:
     # ------------------------------------------------------------------
     # Generic bulk loader
     # ------------------------------------------------------------------
-    def _bulk_load(self, objects: list) -> int:
+    def _bulk_load(self, objects: list[Any]) -> int:
         """Insert objects in batches; returns the count successfully committed."""
         loaded = 0
         for i in range(0, len(objects), self._batch_size):

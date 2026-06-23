@@ -26,6 +26,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from pipeline.ingestion.base_ingester import BaseIngester
 from pipeline.ingestion.csv_ingester import CSVIngester
 from pipeline.ingestion.json_ingester import JSONIngester
 from pipeline.runner import PipelineRunner
@@ -48,6 +49,7 @@ def _execute_pipeline_job(
     log.info("scheduled_job_started", source=source, entity_type=entity_type)
     runner = PipelineRunner(db_url=db_url)
 
+    ingester: BaseIngester
     if source == "csv" and file_path:
         ingester = CSVIngester(file_path)
     elif source in ("json", "ndjson") and file_path:
@@ -156,7 +158,7 @@ class PipelineScheduler:
         self._scheduler.remove_job(job_id)
         log.info("job_removed", job_id=job_id)
 
-    def list_jobs(self) -> list[dict]:
+    def list_jobs(self) -> list[dict[str, Any]]:
         jobs = self._scheduler.get_jobs()
         return [
             {

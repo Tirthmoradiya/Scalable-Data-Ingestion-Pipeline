@@ -186,7 +186,7 @@ class RunTimer:
 
     def __init__(self, source: str) -> None:
         self._source = source
-        self._timer = RUN_DURATION.labels(source=source, status="success").time()
+        self._timer: Any = RUN_DURATION.labels(source=source, status="success").time()
         ACTIVE_RUNS.inc()
 
     def __enter__(self) -> RunTimer:

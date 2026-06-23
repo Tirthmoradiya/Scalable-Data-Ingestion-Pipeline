@@ -96,7 +96,7 @@ class DeadLetterWriter:
         self._fh = self._path.open("a", encoding="utf-8")
         self._count = 0
 
-    def write(self, record: dict, reason: str) -> None:
+    def write(self, record: dict[str, Any], reason: str) -> None:
         """Append a failed record with its failure reason."""
         entry = {
             "ts": datetime.now(tz=UTC).isoformat(),

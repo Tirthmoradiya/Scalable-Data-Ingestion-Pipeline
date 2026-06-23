@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -40,6 +40,7 @@ def configure_logging(log_level: str = "INFO", log_format: str = "console") -> N
         structlog.processors.StackInfoRenderer(),
     ]
 
+    renderer: Any
     if log_format == "json":
         renderer = structlog.processors.JSONRenderer()
     else:
@@ -73,7 +74,7 @@ def configure_logging(log_level: str = "INFO", log_format: str = "console") -> N
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """Return a structlog bound logger for the given module name."""
-    return structlog.get_logger(name)
+    return cast(structlog.stdlib.BoundLogger, structlog.get_logger(name))
 
 
 def bind_run_context(run_id: str, source: str) -> None:

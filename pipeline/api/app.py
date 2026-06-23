@@ -12,6 +12,7 @@ GET  /docs          — Auto-generated Swagger UI (FastAPI default)
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from datetime import UTC, datetime
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -48,7 +49,7 @@ app.add_middleware(
 _engine = create_engine(settings.db.url, pool_pre_ping=True)
 
 
-def get_session():
+def get_session() -> Generator[Session, None, None]:
     with Session(_engine) as session:
         yield session
 
@@ -154,7 +155,8 @@ def get_run(run_id: int, session: Session = Depends(get_session)) -> RunDetail:
 @app.get("/metrics", response_class=PlainTextResponse, tags=["monitoring"])
 def prometheus_metrics() -> str:
     """Prometheus text-format metrics endpoint."""
-    return generate_latest().decode("utf-8")
+    val: str = generate_latest().decode("utf-8")
+    return val
 
 
 # ---------------------------------------------------------------------------

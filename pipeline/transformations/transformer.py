@@ -5,7 +5,10 @@ validated Pydantic schemas into ORM model instances ready for bulk insert.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import ValidationError
+from sqlalchemy.orm import Session
 
 from pipeline.cleaning.cleaner import DataCleaner
 from pipeline.cleaning.validators import (
@@ -31,14 +34,14 @@ class DataTransformer:
     customers = transformer.transform_customers(raw_records)
     """
 
-    def __init__(self, session, metrics: PipelineMetrics) -> None:
+    def __init__(self, session: Session, metrics: PipelineMetrics) -> None:
         self._session = session
         self._metrics = metrics
 
     # ------------------------------------------------------------------
     # Customers
     # ------------------------------------------------------------------
-    def transform_customers(self, raw: list[dict]) -> list[Customer]:
+    def transform_customers(self, raw: list[dict[str, Any]]) -> list[Customer]:
         cleaned = DataCleaner.clean_records(raw)
         seen_emails: set[str] = set()
         customers: list[Customer] = []
@@ -65,7 +68,7 @@ class DataTransformer:
     # ------------------------------------------------------------------
     # Categories
     # ------------------------------------------------------------------
-    def transform_categories(self, raw: list[dict]) -> list[Category]:
+    def transform_categories(self, raw: list[dict[str, Any]]) -> list[Category]:
         cleaned = DataCleaner.clean_records(raw)
         seen_names: set[str] = set()
         categories: list[Category] = []
@@ -89,7 +92,9 @@ class DataTransformer:
     # ------------------------------------------------------------------
     # Products
     # ------------------------------------------------------------------
-    def transform_products(self, raw: list[dict], category_map: dict[str, int]) -> list[Product]:
+    def transform_products(
+        self, raw: list[dict[str, Any]], category_map: dict[str, int]
+    ) -> list[Product]:
         """
         Parameters
         ----------
@@ -131,7 +136,9 @@ class DataTransformer:
     # ------------------------------------------------------------------
     # Orders
     # ------------------------------------------------------------------
-    def transform_orders(self, raw: list[dict], customer_map: dict[str, int]) -> list[Order]:
+    def transform_orders(
+        self, raw: list[dict[str, Any]], customer_map: dict[str, int]
+    ) -> list[Order]:
         """
         Parameters
         ----------

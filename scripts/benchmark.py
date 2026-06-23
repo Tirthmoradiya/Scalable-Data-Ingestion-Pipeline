@@ -35,6 +35,7 @@ import json
 import shutil
 import time
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).parent.parent
 
@@ -129,7 +130,9 @@ def detect_db_backend(db_url: str) -> str:
 # ---------------------------------------------------------------------------
 # Core benchmark functions
 # ---------------------------------------------------------------------------
-def bench_streaming(file_path: Path, chunk_sizes: list[int], ingester_cls) -> list[dict]:
+def bench_streaming(
+    file_path: Path, chunk_sizes: list[int], ingester_cls: Any
+) -> list[dict[str, Any]]:
     """Pure read throughput — no DB involved."""
     results = []
     for chunk_size in chunk_sizes:
@@ -156,11 +159,11 @@ def bench_format(
     label: str,
     rows: int,
     file_path: Path,
-    ingester_cls,
+    ingester_cls: Any,
     db_url: str,
     workers: int = 1,
     chunk_size: int = 500,
-) -> dict:
+) -> dict[str, Any]:
     """Full pipeline: ingest → clean → validate → load."""
     from pipeline.runner import PipelineRunner
 

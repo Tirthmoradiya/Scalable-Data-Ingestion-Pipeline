@@ -30,6 +30,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import psutil
 from sqlalchemy import create_engine
@@ -126,7 +127,7 @@ class BenchResult:
     db_size_mb: float
     error: str | None = None
 
-    def csv_row(self) -> dict:
+    def csv_row(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -202,7 +203,7 @@ def run_pipeline_benchmark(
         rows_failed=total_failed,
         throughput_rps=round(throughput, 0),
         peak_ram_mb=round(monitor.peak_mb, 1),
-        delta_ram_mb=round(monitor.delta_ram_mb, 1),
+        delta_ram_mb=round(monitor.delta_mb, 1),
         db_size_mb=round(db_size_mb, 2),
         error=error_msg,
     )
@@ -267,7 +268,7 @@ def print_summary(results: list[BenchResult]) -> None:
     header = f"  {'Dataset':<10}" + "".join(f"  chunk={cs:<6}" for cs in CHUNK_SIZES_TO_TEST)
     print(header)
     print("  " + "-" * (len(header) - 2))
-    by_label = {}
+    by_label: dict[str, dict[int, float]] = {}
     for r in good:
         by_label.setdefault(r.label, {})[r.chunk_size] = r.throughput_rps
     for label, _ in ROW_TIERS:

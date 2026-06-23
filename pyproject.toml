@@ -102,6 +102,12 @@ check_untyped_defs = true
 module = "tests.*"
 disallow_untyped_defs = false
 
+[[tool.mypy.overrides]]
+module = "benchmark,generate_dataset,scale_test"
+disallow_untyped_defs = false
+disallow_any_generics = false
+disallow_untyped_calls = false
+
 # ---------------------------------------------------------------------------
 # Pytest
 # ---------------------------------------------------------------------------

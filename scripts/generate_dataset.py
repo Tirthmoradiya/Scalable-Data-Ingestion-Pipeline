@@ -171,7 +171,7 @@ def random_price(min_p: float = 0.99, max_p: float = 999.99) -> str:
 # ---------------------------------------------------------------------------
 # Generators
 # ---------------------------------------------------------------------------
-def generate_orders(writer: csv.DictWriter, n: int, progress_every: int = 100_000) -> int:
+def generate_orders(writer: csv.DictWriter[str], n: int, progress_every: int = 100_000) -> int:
     writer.writeheader()
     for i in range(1, n + 1):
         first = random.choice(FIRST_NAMES)
@@ -200,7 +200,7 @@ def generate_orders(writer: csv.DictWriter, n: int, progress_every: int = 100_00
     return n
 
 
-def generate_products(writer: csv.DictWriter, n: int, progress_every: int = 100_000) -> int:
+def generate_products(writer: csv.DictWriter[str], n: int, progress_every: int = 100_000) -> int:
     writer.writeheader()
     for i in range(1, n + 1):
         adj = random.choice(PRODUCT_ADJECTIVES)
@@ -219,7 +219,7 @@ def generate_products(writer: csv.DictWriter, n: int, progress_every: int = 100_
     return n
 
 
-def generate_customers(writer: csv.DictWriter, n: int, progress_every: int = 100_000) -> int:
+def generate_customers(writer: csv.DictWriter[str], n: int, progress_every: int = 100_000) -> int:
     writer.writeheader()
     for i in range(1, n + 1):
         first = random.choice(FIRST_NAMES)

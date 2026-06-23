@@ -119,7 +119,10 @@ def ingest(
     console.print(f"[dim]Source:[/dim] {file or url}  [dim]Entity:[/dim] {entity_type}")
     console.print()
 
+    from pipeline.ingestion.base_ingester import BaseIngester
+
     # Build ingester
+    ingester: BaseIngester
     if source == SourceType.csv:
         ingester = CSVIngester(file)
     elif source in (SourceType.json, SourceType.ndjson):

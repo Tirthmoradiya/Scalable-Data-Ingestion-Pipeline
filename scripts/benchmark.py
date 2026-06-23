@@ -33,7 +33,6 @@ import argparse
 import csv
 import json
 import shutil
-import sys
 import time
 from pathlib import Path
 
@@ -49,9 +48,7 @@ COUNTRIES = ["UK", "US", "JP", "DE", "AU", "FR", "CA", "IN"]
 def generate_csv(rows: int, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as f:
-        writer = csv.DictWriter(
-            f, fieldnames=["name", "email", "phone", "city", "country"]
-        )
+        writer = csv.DictWriter(f, fieldnames=["name", "email", "phone", "city", "country"])
         writer.writeheader()
         for i in range(rows):
             writer.writerow(
@@ -204,7 +201,7 @@ def bench_scale(
     for n in row_counts:
         db_url = make_db_url(db_url_arg, tmp, f"scale_{n}")
         csv_path = generate_csv(n, tmp / f"scale_{n}.csv")
-        r = bench_format(f"CSV", n, csv_path, CSVIngester, db_url, workers, chunk_size)
+        r = bench_format("CSV", n, csv_path, CSVIngester, db_url, workers, chunk_size)
         results.append(r)
         # clean up SQLite DB files between runs to avoid UNIQUE violations
         if "sqlite" in db_url:
@@ -256,8 +253,9 @@ def bench_formats(rows: int, tmp: Path, db_url_arg: str | None) -> list[dict]:
 
     # Parquet (optional)
     try:
-        from pipeline.ingestion.parquet_ingester import ParquetIngester
         import pyarrow  # noqa: F401
+
+        from pipeline.ingestion.parquet_ingester import ParquetIngester
 
         path = generate_parquet(rows, tmp / "fmt_parquet.parquet")
         db_url = make_db_url(db_url_arg, tmp, "fmt_parquet")
@@ -299,11 +297,22 @@ def print_summary(stream: list[dict], scale: list[dict], workers: list[dict], ba
     print(f"  SUMMARY  |  Backend: {backend}")
     print(f"{'═' * 70}")
     if peak_stream:
-        print(f"  ✅ Peak streaming read       : {peak_stream['throughput_rps']:>10,} rows/sec  (chunk={peak_stream['chunk_size']})")
+        print(
+            f"  ✅ Peak streaming read       : "
+            f"{peak_stream['throughput_rps']:>10,} rows/sec  "
+            f"(chunk={peak_stream['chunk_size']})"
+        )
     if peak_scale:
-        print(f"  ✅ Peak full-pipeline        : {peak_scale['throughput_rps']:>10,} rows/sec  ({peak_scale['rows']:,} rows)")
+        print(
+            f"  ✅ Peak full-pipeline        : "
+            f"{peak_scale['throughput_rps']:>10,} rows/sec  "
+            f"({peak_scale['rows']:,} rows)"
+        )
     if best_w:
-        print(f"  ✅ Best worker count         : {best_w['workers']} workers  → {best_w['throughput_rps']:>10,} rows/sec")
+        print(
+            f"  ✅ Best worker count         : {best_w['workers']} workers  "
+            f"→ {best_w['throughput_rps']:>10,} rows/sec"
+        )
     print(f"{'═' * 70}\n")
 
 
@@ -370,9 +379,12 @@ def main() -> None:
     tmp.mkdir(parents=True, exist_ok=True)
 
     backend = detect_db_backend(args.db_url or "sqlite")
-    row_counts = [500, 1_000, 5_000, args.max_rows] if args.max_rows > 5_000 else [500, 1_000, args.max_rows]
+    if args.max_rows > 5_000:
+        row_counts = [500, 1_000, 5_000, args.max_rows]
+    else:
+        row_counts = [500, 1_000, args.max_rows]
 
-    print(f"\n🚀  Scalable Data Ingestion Pipeline — Benchmark Suite")
+    print("\n🚀  Scalable Data Ingestion Pipeline — Benchmark Suite")
     print(f"{'═' * 70}")
     print(f"  Backend  : {backend}")
     print(f"  Max rows : {args.max_rows:,}")
@@ -387,6 +399,7 @@ def main() -> None:
     if not args.skip_streaming:
         print("\n[1/4] Streaming read throughput (no DB, CSV) ...")
         from pipeline.ingestion.csv_ingester import CSVIngester
+
         csv_path = generate_csv(10_000, tmp / "stream_10k.csv")
         stream_results = bench_streaming(csv_path, [100, 500, 1_000, 2_500, 5_000], CSVIngester)
         print_table("Streaming Throughput — 10,000 rows CSV (no DB write)", stream_results)

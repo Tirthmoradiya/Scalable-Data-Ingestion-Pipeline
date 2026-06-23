@@ -13,8 +13,14 @@ __pycache__/
 .pytest_cache/
 .benchmarks/
 
+# Python tool caches
+.ruff_cache/
+.mypy_cache/
+
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -24,7 +30,14 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Project specific ignores
-pipeline.db
+# Database / SQLite files
+*.db
+*.sqlite
+*.sqlite3
+
+# Run logs
+*.log
+
+# Generated outputs
+data/scale/
 dead_letter/
-tests/

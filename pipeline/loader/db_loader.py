@@ -1,7 +1,7 @@
 """
 DBLoader — bulk-upserts ORM model instances into the database.
 
-Uses database-dialect-specific bulk upserts (`on_conflict_do_update` for SQLite/PostgreSQL, 
+Uses database-dialect-specific bulk upserts (`on_conflict_do_update` for SQLite/PostgreSQL,
 `on_duplicate_key_update` for MySQL) on unique-constrained columns (email for customers,
 sku for products, name for categories).
 
@@ -60,9 +60,7 @@ class DBLoader:
         # Align keys: determine which columns to include based on objects
         cols_to_include = []
         for col in model_class.__table__.columns:
-            if col.key == "id" and all(
-                getattr(obj, "id", None) is None for obj in objects
-            ):
+            if col.key == "id" and all(getattr(obj, "id", None) is None for obj in objects):
                 continue
             if col.key == "created_at" and all(
                 getattr(obj, "created_at", None) is None for obj in objects
@@ -78,6 +76,7 @@ class DBLoader:
 
         loaded = 0
         from sqlalchemy import insert
+
         for i in range(0, len(records), self._batch_size):
             batch = records[i : i + self._batch_size]
             stmt = insert(model_class).values(batch)
@@ -109,9 +108,7 @@ class DBLoader:
         # Align keys: determine which columns to include based on objects
         cols_to_include = []
         for col in model_class.__table__.columns:
-            if col.key == "id" and all(
-                getattr(obj, "id", None) is None for obj in objects
-            ):
+            if col.key == "id" and all(getattr(obj, "id", None) is None for obj in objects):
                 continue
             if col.key == "created_at" and all(
                 getattr(obj, "created_at", None) is None for obj in objects
@@ -132,9 +129,7 @@ class DBLoader:
                 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
                 sqlite_stmt = sqlite_insert(model_class).values(batch)
-                sqlite_set_dict = {
-                    k: getattr(sqlite_stmt.excluded, k) for k in update_keys
-                }
+                sqlite_set_dict = {k: getattr(sqlite_stmt.excluded, k) for k in update_keys}
                 sqlite_stmt = sqlite_stmt.on_conflict_do_update(
                     index_elements=unique_keys, set_=sqlite_set_dict
                 )
@@ -143,9 +138,7 @@ class DBLoader:
                 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
                 pg_stmt = pg_insert(model_class).values(batch)
-                pg_set_dict = {
-                    k: getattr(pg_stmt.excluded, k) for k in update_keys
-                }
+                pg_set_dict = {k: getattr(pg_stmt.excluded, k) for k in update_keys}
                 pg_stmt = pg_stmt.on_conflict_do_update(
                     index_elements=unique_keys, set_=pg_set_dict
                 )
@@ -154,9 +147,7 @@ class DBLoader:
                 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
                 mysql_stmt = mysql_insert(model_class).values(batch)
-                mysql_set_dict = {
-                    k: getattr(mysql_stmt.inserted, k) for k in update_keys
-                }
+                mysql_set_dict = {k: getattr(mysql_stmt.inserted, k) for k in update_keys}
                 mysql_stmt = mysql_stmt.on_duplicate_key_update(**mysql_set_dict)
                 self._session.execute(mysql_stmt)
             else:

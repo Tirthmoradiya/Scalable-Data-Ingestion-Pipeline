@@ -120,6 +120,7 @@ class TestConfigureTracing:
     def setup_method(self) -> None:
         # Reset the global tracer so configure_tracing can run fresh each test
         import pipeline.utils.telemetry as tel
+
         tel._tracer = None
 
     def test_configure_tracing_disabled_does_not_raise(self) -> None:
@@ -127,6 +128,7 @@ class TestConfigureTracing:
 
     def test_configure_tracing_disabled_sets_tracer(self) -> None:
         import pipeline.utils.telemetry as tel
+
         configure_tracing(enabled=False)
         assert tel._tracer is not None
 
@@ -134,6 +136,7 @@ class TestConfigureTracing:
         """Calling twice should be a no-op (guard on _tracer is not None)."""
         configure_tracing(enabled=False)
         import pipeline.utils.telemetry as tel
+
         first_tracer = tel._tracer
         configure_tracing(enabled=False)
         assert tel._tracer is first_tracer  # same object, not replaced
@@ -144,16 +147,19 @@ class TestConfigureTracing:
 
     def teardown_method(self) -> None:
         import pipeline.utils.telemetry as tel
+
         tel._tracer = None
 
 
 class TestGetTracer:
     def setup_method(self) -> None:
         import pipeline.utils.telemetry as tel
+
         tel._tracer = None
 
     def test_get_tracer_lazy_initialises(self) -> None:
         import pipeline.utils.telemetry as tel
+
         assert tel._tracer is None
         tracer = _get_tracer()
         assert tracer is not None
@@ -161,12 +167,14 @@ class TestGetTracer:
 
     def teardown_method(self) -> None:
         import pipeline.utils.telemetry as tel
+
         tel._tracer = None
 
 
 class TestTraceSpan:
     def setup_method(self) -> None:
         import pipeline.utils.telemetry as tel
+
         tel._tracer = None
 
     def test_trace_span_yields_span(self) -> None:
@@ -187,6 +195,7 @@ class TestTraceSpan:
 
     def teardown_method(self) -> None:
         import pipeline.utils.telemetry as tel
+
         tel._tracer = None
 
 

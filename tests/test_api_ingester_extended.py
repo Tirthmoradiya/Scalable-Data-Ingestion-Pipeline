@@ -22,9 +22,7 @@ def _make_resp(status: int, body, headers: dict | None = None) -> MagicMock:
     resp.json.return_value = body
     resp.headers = headers or {}
     if status >= 400:
-        exc = httpx.HTTPStatusError(
-            f"HTTP {status}", request=MagicMock(), response=resp
-        )
+        exc = httpx.HTTPStatusError(f"HTTP {status}", request=MagicMock(), response=resp)
         resp.raise_for_status.side_effect = exc
     else:
         resp.raise_for_status.return_value = None

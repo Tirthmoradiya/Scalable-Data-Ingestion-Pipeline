@@ -1,0 +1,6 @@
+{"event_id": "evt-001", "type": "page_view", "user_id": "u1001", "page": "/home", "timestamp": "2024-01-15T09:00:00Z", "session_id": "sess-abc"}
+{"event_id": "evt-002", "type": "click", "user_id": "u1001", "element": "buy_button", "timestamp": "2024-01-15T09:01:30Z", "session_id": "sess-abc"}
+{"event_id": "evt-003", "type": "page_view", "user_id": "u1002", "page": "/products", "timestamp": "2024-01-15T10:15:00Z", "session_id": "sess-def"}
+THIS IS A MALFORMED LINE
+{"event_id": "evt-004", "type": "purchase", "user_id": "u1001", "amount": 299.98, "timestamp": "2024-01-15T09:05:00Z", "session_id": "sess-abc"}
+{"event_id": "evt-005", "type": "logout", "user_id": "u1002", "timestamp": "2024-01-15T10:30:00Z", "session_id": "sess-def"}

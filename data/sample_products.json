@@ -1,0 +1,9 @@
+[
+  {"sku": "WIDGET-001", "name": "Super Widget Pro", "category": "Electronics", "price": "149.99"},
+  {"sku": "WIDGET-002", "name": "Ultra Widget", "category": "Electronics", "price": "199.99"},
+  {"sku": "GADGET-007", "name": "Pocket Gadget", "category": "Gadgets", "price": "49.99"},
+  {"sku": "BOOK-042",   "name": "Clean Code", "category": "Books", "price": "29.99"},
+  {"sku": "WIDGET-001", "name": "Super Widget Pro (duplicate)", "category": "Electronics", "price": "149.99"},
+  {"sku": "",           "name": "No SKU Product", "category": "Misc", "price": "9.99"},
+  {"sku": "INVALID-PRICE", "name": "Bad Price Item", "category": "Misc", "price": "not_a_number"}
+]

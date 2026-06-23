@@ -1,0 +1,67 @@
+services:
+  # ── MySQL Database ──────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_DATABASE: ${DB_NAME:-data_pipeline}
+      MYSQL_USER: ${DB_USER:-pipeline}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── Pipeline (one-shot ingest) ──────────────────────────────────────────────
+  pipeline:
+    build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-data_pipeline}
+      DB_USER: ${DB_USER:-pipeline}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      PIPELINE_BATCH_SIZE: "500"
+      PIPELINE_MAX_WORKERS: "4"
+      PIPELINE_CHUNK_SIZE: "1000"
+      OBS_LOG_FORMAT: json
+      OBS_LOG_LEVEL: INFO
+    volumes:
+      - ./data:/app/data:ro
+      - ./dead_letter:/app/dead_letter
+    command: ["ingest", "--source", "csv", "--file", "/app/data/sample_orders.csv", "--entity", "orders"]
+
+  # ── FastAPI Monitoring API ──────────────────────────────────────────────────
+  api:
+    build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-data_pipeline}
+      DB_USER: ${DB_USER:-pipeline}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      OBS_LOG_FORMAT: json
+    ports:
+      - "8000:8000"
+    command: ["api", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_data:

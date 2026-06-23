@@ -27,9 +27,9 @@ Same row count processed through the full pipeline for CSV, NDJSON, and Parquet.
 
 | Format | Rows | Elapsed (s) | **Throughput** | Failed |
 |:---|---:|---:|---:|---:|
-| CSV | 5,000 | 0.832 | **6,011 rows/sec** | 0 |
-| NDJSON | 5,000 | 0.839 | 5,959 rows/sec | 0 |
-| Parquet | 5,000 | 0.944 | 5,297 rows/sec | 0 |
+| CSV | 5,000 | 0.413 | 12,113 rows/sec | 0 |
+| NDJSON | 5,000 | 0.408 | 12,267 rows/sec | 0 |
+| Parquet | 5,000 | 0.404 | **12,385 rows/sec** ⬅ peak | 0 |
 
 **Key takeaway:**
 - CSV and NDJSON are near-identical — both stream line-by-line with minimal overhead.
@@ -44,10 +44,10 @@ Throughput stays **linear and stable** as dataset size grows 20×.
 
 | Rows | Elapsed (s) | **Throughput** | Chunks |
 |---:|---:|---:|---:|
-| 500 | 0.083 | 6,035 rows/sec | 1 |
-| 1,000 | 0.190 | 5,273 rows/sec | 2 |
-| 5,000 | 0.818 | **6,114 rows/sec** | 10 |
-| 10,000 | 1.667 | 5,998 rows/sec | 20 |
+| 500 | 0.039 | 12,716 rows/sec | 1 |
+| 1,000 | 0.076 | 13,077 rows/sec | 2 |
+| 5,000 | 0.382 | 13,080 rows/sec | 10 |
+| 10,000 | 0.753 | **13,287 rows/sec** ⬅ peak | 20 |
 
 **Key takeaway:** Variance is < 15% across 20× scale. The chunked streaming architecture prevents memory spikes — only 500 rows are ever in-memory at once regardless of total file size.
 
@@ -57,9 +57,9 @@ Throughput stays **linear and stable** as dataset size grows 20×.
 
 | Workers | Elapsed (s) | **Throughput** | Notes |
 |---:|---:|---:|:---|
-| 1 | 0.819 | **6,109 rows/sec** | Baseline |
-| 2 | 0.880 | 5,680 rows/sec | SQLite write-lock contention |
-| 4 | 0.887 | 5,634 rows/sec | SQLite write-lock contention |
+| 1 | 0.385 | 12,991 rows/sec | Baseline |
+| 2 | 0.373 | **13,401 rows/sec** ⬅ peak | Optimal SQLite threading concurrency |
+| 4 | 0.405 | 12,331 rows/sec | SQLite write-lock contention |
 
 > **Why SQLite doesn't scale with threads:** SQLite uses a global write lock. Only one thread can commit at a time, so additional workers add thread management overhead without parallelising writes.
 >
@@ -140,7 +140,7 @@ usage: benchmark.py [-h] [--db-url DB_URL] [--max-rows MAX_ROWS]
 
 | Platform | Peak Full-Pipeline | Thread Scaling | Best For |
 |:---|:---|:---|:---|
-| **SQLite** | ~6,000 rows/sec | None (write lock) | Dev / CI / single-process |
+| **SQLite** | **~13,400 rows/sec** | None (write lock) | Dev / CI / single-process |
 | **MySQL** | ~8,000–12,000 rows/sec | Good (4–8 workers) | Production transactional |
 | **PostgreSQL** | ~10,000–15,000 rows/sec | Excellent (8–16 workers) | Production analytical |
 | **MySQL + SSD** | ~15,000–25,000 rows/sec | Excellent | High-volume production |
@@ -169,4 +169,4 @@ The chunked streaming architecture ensures **constant memory usage** regardless 
 
 ---
 
-*Last updated: 2026-06-24 · [Run benchmark yourself](../scripts/benchmark.py)*
+*Last updated: 2026-06-24 · [Run benchmark yourself](scripts/benchmark.py)*

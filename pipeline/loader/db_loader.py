@@ -1,12 +1,12 @@
 """
 DBLoader — bulk-upserts ORM model instances into the database.
 
-Uses SQLAlchemy 2.x ``Session.add_all()`` with ``merge()`` for upsert
-semantics on unique-constrained columns (email for customers, sku for products,
-name for categories).
+Uses database-dialect-specific bulk upserts (`on_conflict_do_update` for SQLite/PostgreSQL, 
+`on_duplicate_key_update` for MySQL) on unique-constrained columns (email for customers,
+sku for products, name for categories).
 
 For tables without natural unique keys (orders, order_items, pipeline_runs),
-plain inserts are used since duplicates are not expected at the ORM level.
+optimized bulk inserts are used since duplicates are not expected.
 """
 
 from __future__ import annotations
@@ -52,36 +52,136 @@ class DBLoader:
     # Generic bulk loader
     # ------------------------------------------------------------------
     def _bulk_load(self, objects: list[Any]) -> int:
-        """Insert objects in batches; returns the count successfully committed."""
+        """Insert objects in batches using fast bulk insert."""
+        if not objects:
+            return 0
+        model_class = objects[0].__class__
+
+        # Align keys: determine which columns to include based on objects
+        cols_to_include = []
+        for col in model_class.__table__.columns:
+            if col.key == "id" and all(getattr(obj, "id", None) is None for obj in objects):
+                continue
+            if col.key == "created_at" and all(getattr(obj, "created_at", None) is None for obj in objects):
+                continue
+            cols_to_include.append(col.key)
+
+        # Convert ORM objects to dictionary records with matching keys
+        records = []
+        for obj in objects:
+            record = {key: getattr(obj, key) for key in cols_to_include}
+            records.append(record)
+
         loaded = 0
-        for i in range(0, len(objects), self._batch_size):
-            batch = objects[i : i + self._batch_size]
-            self._session.add_all(batch)
+        from sqlalchemy import insert
+        for i in range(0, len(records), self._batch_size):
+            batch = records[i : i + self._batch_size]
+            stmt = insert(model_class).values(batch)
+            self._session.execute(stmt)
             self._session.flush()
             loaded += len(batch)
-            logger.debug("Flushed batch of %d %s rows", len(batch), type(batch[0]).__name__)
+            logger.debug("Flushed batch of %d %s rows via bulk insert", len(batch), model_class.__name__)
+        return loaded
+
+    # ------------------------------------------------------------------
+    # Dynamic dialect-specific upsert
+    # ------------------------------------------------------------------
+    def _execute_upsert(
+        self,
+        model_class: Any,
+        unique_keys: list[str],
+        update_keys: list[str],
+        objects: list[Any],
+    ) -> int:
+        if not objects:
+            return 0
+
+        dialect_name = self._session.bind.dialect.name
+
+        # Align keys: determine which columns to include based on objects
+        cols_to_include = []
+        for col in model_class.__table__.columns:
+            if col.key == "id" and all(getattr(obj, "id", None) is None for obj in objects):
+                continue
+            if col.key == "created_at" and all(getattr(obj, "created_at", None) is None for obj in objects):
+                continue
+            cols_to_include.append(col.key)
+
+        # Convert ORM objects to dictionary records with matching keys
+        records = []
+        for obj in objects:
+            record = {key: getattr(obj, key) for key in cols_to_include}
+            records.append(record)
+
+        loaded = 0
+        for i in range(0, len(records), self._batch_size):
+            batch = records[i : i + self._batch_size]
+            if dialect_name == "sqlite":
+                from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+                stmt = sqlite_insert(model_class).values(batch)
+                set_dict = {k: getattr(stmt.excluded, k) for k in update_keys}
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=unique_keys, set_=set_dict
+                )
+                self._session.execute(stmt)
+            elif dialect_name in ("postgresql", "postgres"):
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+                stmt = pg_insert(model_class).values(batch)
+                set_dict = {k: getattr(stmt.excluded, k) for k in update_keys}
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=unique_keys, set_=set_dict
+                )
+                self._session.execute(stmt)
+            elif dialect_name == "mysql":
+                from sqlalchemy.dialects.mysql import insert as mysql_insert
+
+                stmt = mysql_insert(model_class).values(batch)
+                set_dict = {k: getattr(stmt.inserted, k) for k in update_keys}
+                stmt = stmt.on_duplicate_key_update(**set_dict)
+                self._session.execute(stmt)
+            else:
+                # Fallback to merge
+                for r in objects[i : i + self._batch_size]:
+                    self._session.merge(r)
+
+            self._session.flush()
+            loaded += len(batch)
+            logger.debug(
+                "Upserted batch of %d %s rows via %s dialect",
+                len(batch),
+                model_class.__name__,
+                dialect_name,
+            )
         return loaded
 
     # ------------------------------------------------------------------
     # Entity-specific loaders
     # ------------------------------------------------------------------
     def load_categories(self, categories: list[Category]) -> int:
-        if not categories:
-            return 0
-        merged = [self._session.merge(c) for c in categories]
-        return self._bulk_load(merged)
+        return self._execute_upsert(
+            model_class=Category,
+            unique_keys=["name"],
+            update_keys=["parent_id"],
+            objects=categories,
+        )
 
     def load_customers(self, customers: list[Customer]) -> int:
-        if not customers:
-            return 0
-        merged = [self._session.merge(c) for c in customers]
-        return self._bulk_load(merged)
+        return self._execute_upsert(
+            model_class=Customer,
+            unique_keys=["email"],
+            update_keys=["name", "phone"],
+            objects=customers,
+        )
 
     def load_products(self, products: list[Product]) -> int:
-        if not products:
-            return 0
-        merged = [self._session.merge(p) for p in products]
-        return self._bulk_load(merged)
+        return self._execute_upsert(
+            model_class=Product,
+            unique_keys=["sku"],
+            update_keys=["name", "category_id", "price"],
+            objects=products,
+        )
 
     def load_orders(self, orders: list[Order]) -> int:
         if not orders:

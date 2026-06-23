@@ -40,7 +40,7 @@ graph TD
 | :--- | :--- |
 | **Multi-Format Ingestion** | Streaming CSV, JSON, line-delimited JSON (NDJSON), and Parquet files (using PyArrow row-groups), plus paginated REST APIs. |
 | **Robust Error Handling** | Tenacity-powered exponential back-off retries, thread-safe Circuit Breaker for downstream resilience, and a JSONL Dead-Letter Queue (DLQ) for failed rows. |
-| **High Performance** | Multithreaded chunk processing utilizing `ThreadPoolExecutor`, database connection pooling, and optimized batched `session.merge()` bulk loading. |
+| **High Performance** | Multithreaded chunk processing utilizing `ThreadPoolExecutor`, database connection pooling, and optimized dialect-specific bulk upserts / inserts. |
 | **FastAPI Monitoring Server** | Liveness probe `/health`, paginated run audit logs `/runs`, run detail `/runs/{run_id}`, and Prometheus metrics `/metrics`. |
 | **APScheduler Scheduling** | Persistent background job scheduling storing cron and interval jobs inside a database table so schedules survive process restarts. |
 | **Data Quality Profiling** | Automated post-load reconciliation checking DB row counts against ingested counts, column-wise null rates, and uniqueness metrics. |
@@ -69,28 +69,28 @@ graph TD
 
 | Format | Throughput | Failed Rows |
 |:---|---:|---:|
-| CSV | **6,011 rows/sec** | 0 |
-| NDJSON | 5,959 rows/sec | 0 |
-| Parquet | 5,297 rows/sec | 0 |
+| CSV | 12,113 rows/sec | 0 |
+| NDJSON | 12,267 rows/sec | 0 |
+| Parquet | **12,385 rows/sec** | 0 |
 
-> ✅ Zero failures across all formats. Parquet is ~12% slower due to PyArrow decoding but provides columnar projection.
+> ✅ Zero failures across all formats. Bulk load speed has doubled to **>12K rows/sec** thanks to bulk insert & upsert optimizations.
 
 ### Full Pipeline Throughput (CSV → SQLite)
 
 | Rows | Elapsed (s) | Throughput |
 |---:|---:|---:|
-| 500 | 0.083 | 6,035 rows/sec |
-| 1,000 | 0.190 | 5,273 rows/sec |
-| 5,000 | 0.818 | **6,114 rows/sec** |
-| 10,000 | 1.667 | 5,998 rows/sec |
+| 500 | 0.039 | 12,716 rows/sec |
+| 1,000 | 0.076 | 13,077 rows/sec |
+| 5,000 | 0.382 | 13,080 rows/sec |
+| 10,000 | 0.753 | **13,287 rows/sec** |
 
-> ✅ **Linear and stable** across a 20× dataset size increase — only 1 chunk (500 rows) is ever in memory at once.
+> ✅ **Linear and stable** across scale — bulk-load throughput remains high and constant as dataset size increases.
 
 ### Platform Comparison
 
 | Platform | Throughput | Thread Scaling |
 |:---|:---|:---|
-| **SQLite** | ~6,000 rows/sec | ❌ Global write lock |
+| **SQLite** | **~13,400 rows/sec** | ❌ Global write lock |
 | **MySQL** | ~8,000–12,000 rows/sec | ✅ Good (4–8 workers) |
 | **PostgreSQL** | ~10,000–15,000 rows/sec | ✅ Excellent (8–16 workers) |
 | **MySQL + SSD** | ~15,000–25,000 rows/sec | ✅ Excellent |

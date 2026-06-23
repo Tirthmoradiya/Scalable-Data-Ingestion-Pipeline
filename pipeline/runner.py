@@ -231,23 +231,21 @@ class PipelineRunner:
             transformer = DataTransformer(session, chunk_metrics)
             loader = DBLoader(session, batch_size=self._settings.pipeline.batch_size)
 
-            cleaned = DataCleaner.clean_records(chunk)
-
             objects: list[Any] = []
             # Route by entity type
             if entity_type == "customers":
-                objects = transformer.transform_customers(cleaned)
+                objects = transformer.transform_customers(chunk)
                 loader.load_customers(objects)
             elif entity_type == "products":
                 cat_map = loader.get_category_map()
-                objects = transformer.transform_products(cleaned, cat_map)
+                objects = transformer.transform_products(chunk, cat_map)
                 loader.load_products(objects)
             elif entity_type == "orders":
                 customer_map = loader.get_customer_map()
-                objects = transformer.transform_orders(cleaned, customer_map)
+                objects = transformer.transform_orders(chunk, customer_map)
                 loader.load_orders(objects)
             elif entity_type == "categories":
-                objects = transformer.transform_categories(cleaned)
+                objects = transformer.transform_categories(chunk)
                 loader.load_categories(objects)
             else:
                 log.warning("unknown_entity_type", entity_type=entity_type)

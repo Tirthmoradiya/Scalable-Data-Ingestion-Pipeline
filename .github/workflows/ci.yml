@@ -69,4 +69,4 @@ jobs:
         run: docker build -t data-pipeline:ci .
       - name: Smoke test container
         run: |
-          docker run --rm data-pipeline:ci python -c "from pipeline.settings import settings; print('Settings OK')"
+          docker run --rm --entrypoint python data-pipeline:ci -c "from pipeline.settings import settings; print('Settings OK')"
